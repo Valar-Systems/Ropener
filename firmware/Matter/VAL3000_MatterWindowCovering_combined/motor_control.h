@@ -190,7 +190,7 @@ bool fullOpen() {
   // Call every second to update position in position watcher task
 
 
-  
+
   // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
   WindowBlinds.setLiftPercentage(currentLiftPercent);
 
@@ -282,11 +282,14 @@ bool stopMotor() {
 // User return statement?
 void position_watcher_task(void *parameter) {
 
+  int loop1 = 0;
+
   while (true) {
 
     while (is_moving) {
 
       Serial.println(motor_position);
+      loop1++;
 
       // check if button was pressed
       if (stop_flag) {
@@ -320,14 +323,30 @@ void position_watcher_task(void *parameter) {
         }
       }
 
+      // Update position in Matter every once is a while
+      if (loop1 >= 100) {
+        currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
+        WindowBlinds.setLiftPercentage(currentLiftPercent);
+        loop1 = 0;
+      }
+
       delay(20);
     }
 
 notify_and_suspend:
     is_moving = false;
+    currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
+
+    // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
+    WindowBlinds.setLiftPercentage(currentLiftPercent);
+
+    // Set operational status to STALL when movement is complete
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
+
+    // Store state
+    preferences.putUChar(liftPercentPrefKey, currentLiftPercent);
     preferences.putInt("motor_pos", motor_position);
-    target_percent = ((float)motor_position / (float)maximum_motor_position) * 100;
-    //ESPUI.updateSlider(positionSlider, target_percent);
+
     vTaskDelete(NULL);
   }
 }
@@ -424,6 +443,4 @@ void setup_motors() {
   driver.pwm_freq(1);
   driver.pwm_grad(PWM_grad);  // Test different initial values. Use scope.
   driver.pwm_ofs(36);
-
-
 }
