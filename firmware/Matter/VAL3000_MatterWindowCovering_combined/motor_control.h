@@ -183,22 +183,27 @@ bool fullOpen() {
   currentLiftPercent = 100;
   Serial.printf("Opening window covering to full open (position: %d cm)\r\n", currentLift);
 
-  // MOTOR CODE GOES HERE
 
+  /////////////////
+    if (motor_position < 0) {
+    motor_position = maximum_motor_position;
+  }
 
+  printf("motor_position close: %lu\n", motor_position);    // TESTING
+  printf("target_position close: %lu\n", target_position);  // TESTING
 
-  // Call every second to update position in position watcher task
+  printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
+  printf("target_percent close: %lu\n", target_percent);              // TESTING
 
+  stop_flag = false;
+  is_closing = false;
+  is_moving = true;
 
+  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
 
-  // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
-  WindowBlinds.setLiftPercentage(currentLiftPercent);
-
-  // Set operational status to STALL when movement is complete
-  WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
-
-  // Store state
-  preferences.putUChar(liftPercentPrefKey, currentLiftPercent);
+  enable_driver();
+  // Add for loop for acceleration
+  driver.VACTUAL(OPEN_VELOCITY);
 
   return true;
 }
@@ -211,14 +216,25 @@ bool fullClose() {
   currentLiftPercent = 0;
   Serial.printf("Closing window covering to full close (position: %d cm)\r\n", currentLift);
 
-  // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
-  WindowBlinds.setLiftPercentage(currentLiftPercent);
+  if (motor_position < 0) {
+    motor_position = 0;
+  }
 
-  // Set operational status to STALL when movement is complete
-  WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
+  // printf("motor_position close: %lu\n", motor_position);    // TESTING
+  // printf("target_position close: %lu\n", target_position);  // TESTING
 
-  // Store state
-  preferences.putUChar(liftPercentPrefKey, currentLiftPercent);
+  // printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
+  // printf("target_percent close: %lu\n", target_percent);  // TESTING
+
+  stop_flag = false;
+  is_closing = true;
+  is_moving = true;
+
+  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+
+  enable_driver();
+  // Add for loop for acceleration
+  driver.VACTUAL(CLOSE_VELOCITY);
 
   return true;
 }
@@ -234,29 +250,34 @@ bool goToLiftPercentage(uint8_t liftPercent) {
     WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
   }
 
+  target_position = (liftPercent / 100.0) * maximum_motor_position;
+
+if (target_position == motor_position) {
+    printf("Not moving the window because it is already at the desired position\n");
+    printf("target_position: %li\n", target_position);
+    printf("motor_position: %li\n", motor_position);
+    return true;
+  } else if (target_position > motor_position || liftPercent == 100) {
+    fullClose();
+  } else if (target_position < motor_position || liftPercent == 0) {
+    fullOpen();
+  }
+
+
   // This is where you would trigger your motor to go towards liftPercent
   // For simulation, we update instantly
   // Calculate absolute position based on installed limits
-  uint16_t openLimit = WindowBlinds.getInstalledOpenLimitLift();
-  uint16_t closedLimit = WindowBlinds.getInstalledClosedLimitLift();
+  // uint16_t openLimit = WindowBlinds.getInstalledOpenLimitLift();
+  // uint16_t closedLimit = WindowBlinds.getInstalledClosedLimitLift();
 
-  // Linear interpolation: 0% = openLimit, 100% = closedLimit
-  if (openLimit < closedLimit) {
-    currentLift = openLimit + ((closedLimit - openLimit) * liftPercent) / 100;
-  } else {
-    currentLift = openLimit - ((openLimit - closedLimit) * liftPercent) / 100;
-  }
-  currentLiftPercent = liftPercent;
-  Serial.printf("Moving lift to %d%% (position: %d cm)\r\n", currentLiftPercent, currentLift);
-
-  // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
-  WindowBlinds.setLiftPercentage(currentLiftPercent);
-
-  // Set operational status to STALL when movement is complete
-  WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
-
-  // Store state
-  preferences.putUChar(liftPercentPrefKey, currentLiftPercent);
+  // // Linear interpolation: 0% = openLimit, 100% = closedLimit
+  // if (openLimit < closedLimit) {
+  //   currentLift = openLimit + ((closedLimit - openLimit) * liftPercent) / 100;
+  // } else {
+  //   currentLift = openLimit - ((openLimit - closedLimit) * liftPercent) / 100;
+  // }
+  // currentLiftPercent = liftPercent;
+  // Serial.printf("Moving lift to %d%% (position: %d cm)\r\n", currentLiftPercent, currentLift);
 
   return true;
 }
