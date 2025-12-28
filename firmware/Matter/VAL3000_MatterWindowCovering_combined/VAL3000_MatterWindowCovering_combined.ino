@@ -1,16 +1,4 @@
-// Copyright 2025 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Requires esp32 v3.3.5
 
 // Matter Manager
 #include <Matter.h>
@@ -48,7 +36,8 @@ static void btn1SingleClickCb(void *button_handle, void *usr_data) {
   if (is_moving) {
     stop_flag = true;
   } else {
-    move_to_percent100ths(0);
+    //move_to_percent100ths(0);
+    fullOpen();
   }
 }
 
@@ -74,7 +63,8 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
   if (is_moving) {
     stop_flag = true;
   } else {
-    move_to_percent100ths(100);
+    //move_to_percent100ths(100);
+    fullClose();
   }
 }
 

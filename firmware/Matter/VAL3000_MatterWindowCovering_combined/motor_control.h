@@ -77,8 +77,8 @@ void setCloseCall() {
   Serial.println(target_percent);
 }
 
-/*
 
+/*
 // Function that commands motor to move to position 
 void move_to_percent100ths(uint16_t percent100ths) {
   printf("move_to_percent100ths(): %i\n", percent100ths);
@@ -111,9 +111,7 @@ void move_to_percent100ths(uint16_t percent100ths) {
   }
 }
 
-*/
 
-/*
 
 void move_close() {
   printf("move_close()\n");
@@ -138,10 +136,10 @@ void move_close() {
   // Add for loop for acceleration
   driver.VACTUAL(CLOSE_VELOCITY);
 }
-*/
 
 
-/*
+
+
 
 void move_open() {
   printf("move_open()\n");
@@ -167,6 +165,7 @@ void move_open() {
   driver.VACTUAL(OPEN_VELOCITY);
 }
 
+
 */
 
 
@@ -184,6 +183,14 @@ bool fullOpen() {
   currentLiftPercent = 100;
   Serial.printf("Opening window covering to full open (position: %d cm)\r\n", currentLift);
 
+  // MOTOR CODE GOES HERE
+
+
+
+  // Call every second to update position in position watcher task
+
+
+  
   // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
   WindowBlinds.setLiftPercentage(currentLiftPercent);
 
