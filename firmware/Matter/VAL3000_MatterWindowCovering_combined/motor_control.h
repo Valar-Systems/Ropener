@@ -185,8 +185,8 @@ bool fullOpen() {
 
 
   /////////////////
-    if (motor_position < 0) {
-    motor_position = maximum_motor_position;
+  if (motor_position < 0) {
+    motor_position = 0;
   }
 
   printf("motor_position close: %lu\n", motor_position);    // TESTING
@@ -216,8 +216,8 @@ bool fullClose() {
   currentLiftPercent = 0;
   Serial.printf("Closing window covering to full close (position: %d cm)\r\n", currentLift);
 
-  if (motor_position < 0) {
-    motor_position = 0;
+  if (motor_position > maximum_motor_position) {
+    motor_position = maximum_motor_position;
   }
 
   // printf("motor_position close: %lu\n", motor_position);    // TESTING
@@ -252,15 +252,15 @@ bool goToLiftPercentage(uint8_t liftPercent) {
 
   target_position = (liftPercent / 100.0) * maximum_motor_position;
 
-if (target_position == motor_position) {
+  if (target_position == motor_position) {
     printf("Not moving the window because it is already at the desired position\n");
     printf("target_position: %li\n", target_position);
     printf("motor_position: %li\n", motor_position);
     return true;
   } else if (target_position > motor_position || liftPercent == 100) {
-    fullClose();
-  } else if (target_position < motor_position || liftPercent == 0) {
     fullOpen();
+  } else if (target_position < motor_position || liftPercent == 0) {
+    fullClose();
   }
 
 
@@ -285,17 +285,17 @@ if (target_position == motor_position) {
 bool stopMotor() {
   // Motor can be stopped while moving cover toward current target
   Serial.println("Stopping window covering motor");
-
-  // Update CurrentPosition to reflect actual position when stopped
-  // (setLiftPercentage now only update CurrentPosition)
-  WindowBlinds.setLiftPercentage(currentLiftPercent);
-
-  // Set operational status to STALL for both lift
-  WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
-
+  stop_flag = true;
   return true;
 }
 
+/* Stops motor */
+void stop() {
+  disable_driver();
+  printf("stop(): disable_driver\n");
+  driver.VACTUAL(STOP_MOTOR_VELOCITY);
+  printf("stop(): driver.VACTUAL(STOP_MOTOR_VELOCITY)\n");
+}
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -345,7 +345,7 @@ void position_watcher_task(void *parameter) {
       }
 
       // Update position in Matter every once is a while
-      if (loop1 >= 100) {
+        if(loop1 >= 100){
         currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
         WindowBlinds.setLiftPercentage(currentLiftPercent);
         loop1 = 0;
@@ -370,14 +370,6 @@ notify_and_suspend:
 
     vTaskDelete(NULL);
   }
-}
-
-/* Stops motor */
-void stop() {
-  disable_driver();
-  printf("stop(): disable_driver\n");
-  driver.VACTUAL(STOP_MOTOR_VELOCITY);
-  printf("stop(): driver.VACTUAL(STOP_MOTOR_VELOCITY)\n");
 }
 
 // put your setup code here, to run once:
@@ -420,14 +412,13 @@ void setup_motors() {
   driver.TPWMTHRS(0);
   driver.VACTUAL(0);
 
-  driver.irun(20);       // 27 for 24V // 20 for 12V
-  driver.TCOOLTHRS(80);  // TESTING. 20 to turn off coolstep to test vibrations//600 ok//
-  // TSTEP = 163 at 400 velocity
-  // 54 at 1200 velocity
-  // 200 is min SG_RESULT
-  // SG_RESULT=
-  // SGTHRS = SG_RESULT/2
-  driver.SGTHRS(120);  // 100 ok
+  driver.irun(20);       // Max current
+
+  driver.TCOOLTHRS(80);  // 20 to turn off coolstep to test vibrations//600 ok//
+
+  // Stallguard or CoolStep NOT currently supported. Coming soon
+
+  driver.SGTHRS(120);  //
   // Once SGTHRS has been determined, use 1/16*SGTHRS+1
   // as a starting point for SEMIN.
 

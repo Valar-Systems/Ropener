@@ -24,67 +24,81 @@ MatterWindowCovering WindowBlinds;
 // Button2 = Top Right button
 // Button3 = Bottom button
 
+// Stop movement, if moving, when button down is pressed
 static void btn1PressDownCb(void *button_handle, void *usr_data) {
   Serial.println("Button pressed down");
   if (is_moving) {
     stop_flag = true;
+    // set veolicty to 0 for double click?
   }
 }
 
+// Move to full close position
 static void btn1SingleClickCb(void *button_handle, void *usr_data) {
-  Serial.println("Button single click");
+  Serial.println("Button1 single click");
   if (is_moving) {
     stop_flag = true;
   } else {
-    //move_to_percent100ths(0);
-    fullOpen();
-  }
-}
-
-static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
-  Serial.println("Button double click");
-  //
-}
-
-static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
-  Serial.println("Button long press click");
-  // Override position. Turn motor until button is pressed. (Set to close position once button is pressed. If this is the close direction?)
-}
-
-static void btn2PressDownCb(void *button_handle, void *usr_data) {
-  Serial.println("Button pressed down");
-  if (is_moving) {
-    stop_flag = true;
-  }
-}
-
-static void btn2SingleClickCb(void *button_handle, void *usr_data) {
-  Serial.println("Button single click");
-  if (is_moving) {
-    stop_flag = true;
-  } else {
-    //move_to_percent100ths(100);
     fullClose();
   }
 }
 
+// Move until stop button is pressed
+static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
+  Serial.println("Button1 double click");
+  // Create function for this?
+  // Set velocity full
+  // 
+}
+
+// If not moving, sets zero position
+static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
+  Serial.println("Button1 long press click");
+
+  if (!is_moving){
+
+  }
+  // Override position. Turn motor until button is pressed. (Set to close position once button is pressed. If this is the close direction?)
+}
+
+static void btn2PressDownCb(void *button_handle, void *usr_data) {
+  Serial.println("Button2 pressed down");
+  if (is_moving) {
+    stop_flag = true;
+  }
+}
+
+// Move to full Open position
+static void btn2SingleClickCb(void *button_handle, void *usr_data) {
+  Serial.println("Button2 single click");
+  if (is_moving) {
+    stop_flag = true;
+  } else {
+    fullOpen();
+  }
+}
+
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
-  Serial.println("Button double click");
+  Serial.println("Button2 double click");
   // Move the motor until pressed to stop. Will override position
+  
+  // Pass bool to fulOpen to avoid
+  // fullOpen(false);
+
 }
 
 
 static void btn2LongPressStartCb(void *button_handle, void *usr_data) {
-  Serial.println("Button long press click");
+  Serial.println("Button2 long press click");
 }
 
 static void btn3SingleClickCb(void *button_handle, void *usr_data) {
-  Serial.println("Button single click");
+  Serial.println("Button2 single click");
 }
 
 // Changes the opening direction of Button1 and Button2
 static void btn3DoubleClickCb(void *button_handle, void *usr_data) {
-  Serial.println("Button double click");
+  Serial.println("Button3 double click");
   // Change direction
   if (opening_direction == 0) {
     opening_direction = 1;
@@ -99,7 +113,7 @@ static void btn3DoubleClickCb(void *button_handle, void *usr_data) {
 }
 
 static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
-  Serial.println("Button long press click");
+  Serial.println("Button3 long press click");
   //Reset matter
   Serial.println("Decommissioning the Window Covering Matter Accessory. It shall be commissioned again.");
   WindowBlinds.setLiftPercentage(0);  // close the covering
@@ -133,15 +147,27 @@ void setup() {
 
   preferences.begin("local", false);
 
-  load_preferences();
+  //load_preferences();
+
+  motor_position = preferences.getInt("motor_pos", 0); // Loads saved motor position
+
+  travel_distance = 20; // Inches. Change this value to change the distance to openS
+
+  // 200 steps per revolution
+  
+  int revolutions = travel_distance / circumference_in; // How many times the motor need to spin to reach 20 inches
+  int steps_per_revolution = 200;
+  maximum_motor_position = revolutions * steps_per_revolution;//
+  uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
+
   setup_motors();
 
   ArduinoOTA.begin();
 
   // Initialize Matter EndPoint
-  //matterPref.begin("MatterPrefs", false);
+  // matterPref.begin("MatterPrefs", false);
   // default lift percentage is 100% (fully open) if not stored before
-  uint8_t lastLiftPercent = preferences.getUChar(liftPercentPrefKey, 100);
+  // uint8_t lastLiftPercent = preferences.getUChar(liftPercentPrefKey, 100);
 
   // Initialize window covering with BLIND_LIFT type
   WindowBlinds.begin(lastLiftPercent, MatterWindowCovering::DRAPERY);

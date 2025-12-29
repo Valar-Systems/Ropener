@@ -9,9 +9,8 @@ bool opening_direction;
 
 int travel_distance;
 float diameter_pulley_cm = 1.2f;  // Only change the value if updating the pulley size
-
-
 float diameter_pulley_in = diameter_pulley_cm * 0.3937f;
+
 float circumference_cm = diameter_pulley_cm * PI;
 float circumference_in = diameter_pulley_in * PI;
 
@@ -34,14 +33,27 @@ int32_t motor_position;
 uint32_t maximum_motor_position;
 uint8_t target_percent;
 
-int wifi_set;
-bool wifi_button = false;
 
-String ssid;
-String password;
 
-const byte DNS_PORT = 53;
-IPAddress apIP(192, 168, 4, 1);
+///////////
+
+
+  //current = 1000;
+  //stall = 10;
+  //accel = 10000;
+  //max_speed = 30000;
+  //opening_direction = 0;
+  //is_cm = 0;
+
+  
+
+  //motor_position = 0; // load from preferences
+
+
+
+//////////
+
+
 
 // Filter anti-rebond (debouncer)
 #define DEBOUNCE_TIME 250
@@ -83,8 +95,6 @@ void load_preferences() {
 
   Serial.println("LOADING PREFERENCES");
 
-  ssid = preferences.getString("ssid", "NOT_SET");
-  password = preferences.getString("pass", "NOT_SET");
   maximum_motor_position = preferences.getInt("max_motor_pos", 2695); // defaults to 20 inches
   motor_position = preferences.getInt("motor_pos", 0);
   current = preferences.getLong("current", 1000);
