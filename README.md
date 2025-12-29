@@ -6,9 +6,9 @@ Without the kit, it's a pain to source all the parts, and costs a lot more becau
 ## New Book!!
 I've written a short book to teach you how to program this Trinamic stepper motor from scratch. It can be found [here](https://valarsystems.com/products/controlling-trinamic-drivers-pdf)
 
-# MorningRope: Automated Curtain Opener
+# Ropener: Automated Curtain Opener
 
-The MorningRope is a smart curtain opener that uses two buttons and HTTP requests to open and close your curtain. Combine it with Node-RED, Home Assistant (via ESPhome), or any other system capable of sending HTTP requests and get your curtain to open and close automatically.
+The Ropener is a smart curtain opener that uses two buttons and HTTP requests to open and close your curtain. Combine it with Node-RED, Home Assistant (via ESPhome), or any other system capable of sending HTTP requests and get your curtain to open and close automatically.
 
 ![window opener GIF](/media/curtain-gif.gif)
 
