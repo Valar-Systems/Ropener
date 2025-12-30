@@ -2,8 +2,8 @@ uint16_t positionLabel;
 
 #include <TMCStepper.h>
 
-#include "soc/timer_group_struct.h"
-#include "soc/timer_group_reg.h"
+//#include "soc/timer_group_struct.h"
+//#include "soc/timer_group_reg.h"
 
 #define ENABLE_PIN 8
 #define RX_PIN 5
@@ -11,8 +11,8 @@ uint16_t positionLabel;
 #define STALLGUARD_PIN 1
 #define INDEX_PIN 0
 
-#define BUTTON_1_PIN GPIO_NUM_3
-#define BUTTON_2_PIN GPIO_NUM_4
+#define BUTTON_1_PIN GPIO_NUM_4
+#define BUTTON_2_PIN GPIO_NUM_3
 #define WIFI_RESET_PIN GPIO_NUM_7
 
 #define DRIVER_ADDRESS 0b00  // TMC2209 Driver address according to MS1 and MS2

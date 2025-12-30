@@ -47,17 +47,7 @@ uint8_t target_percent;
 
   
 
-  //motor_position = 0; // load from preferences
-
-
-
-//////////
-
-
-
-// Filter anti-rebond (debouncer)
-#define DEBOUNCE_TIME 250
-volatile uint32_t DebounceTimer = 0;
+  //motor_position = 0; // load from preferen
 
 Preferences preferences;
 
@@ -88,7 +78,8 @@ const uint16_t MIN_LIFT = 0;    // Minimum lift position (fully closed)
 uint16_t currentLift = 0;  // Lift position in cm
 uint8_t currentLiftPercent = 100;
 
-
+bool pressdown = false;
+int pressdown_timer;
 
 
 void load_preferences() {

@@ -18,6 +18,9 @@ MatterWindowCovering WindowBlinds;
 #include <ArduinoOTA.h>  // For enabling over-the-air updates
 
 
+bool set_distance;
+
+
 // Button callbacks
 
 // Button1 = Top left button
@@ -29,17 +32,29 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
   Serial.println("Button pressed down");
   if (is_moving) {
     stop_flag = true;
-    // set veolicty to 0 for double click?
+    if (set_distance) {
+      disable_driver();
+      driver.VACTUAL(STOP_MOTOR_VELOCITY);
+      is_moving = false;
+      pressdown = false;
+      pressdown_timer = millis() + 1000;  //start timer
+      motor_position = 0;
+      preferences.putInt("motor_pos", motor_position);
+      WindowBlinds.setTargetLiftPercent100ths(motor_position * 100);
+      set_distance = false;
+    }
   }
 }
 
 // Move to full close position
 static void btn1SingleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 single click");
-  if (is_moving) {
-    stop_flag = true;
-  } else {
-    fullClose();
+  if (pressdown) {
+    if (is_moving) {
+      stop_flag = true;
+    } else {
+      fullClose();
+    }
   }
 }
 
@@ -48,49 +63,98 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 double click");
   // Create function for this?
   // Set velocity full
-  // 
+  //
+  is_moving = true;
+  is_closing = true;
+  set_distance = true;
+  enable_driver();
+  driver.VACTUAL(CLOSE_VELOCITY);
 }
 
 // If not moving, sets zero position
 static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 long press click");
 
-  if (!is_moving){
-
+  if (!is_moving) {
   }
   // Override position. Turn motor until button is pressed. (Set to close position once button is pressed. If this is the close direction?)
 }
+
+
+
+
+
+
+
+
+
 
 static void btn2PressDownCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 pressed down");
   if (is_moving) {
     stop_flag = true;
+    if (set_distance) {
+      disable_driver();
+      driver.VACTUAL(STOP_MOTOR_VELOCITY);
+      is_moving = false;
+      maximum_motor_position = motor_position;
+      preferences.putInt("motor_pos", motor_position);
+      preferences.putInt("max_motor_pos", motor_position);
+      set_distance = false;
+
+      pressdown = false;
+      pressdown_timer = millis() + 1000;  //start timer to ignore release for 1 second
+      int targetLiftPercent = 100;
+      WindowBlinds.setTargetLiftPercent100ths(targetLiftPercent * 100);
+    }
   }
 }
 
 // Move to full Open position
 static void btn2SingleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 single click");
-  if (is_moving) {
-    stop_flag = true;
-  } else {
-    fullOpen();
+  if (pressdown) {
+    if (is_moving) {
+      stop_flag = true;
+    } else {
+      fullOpen();
+    }
   }
 }
+
+
+
 
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 double click");
   // Move the motor until pressed to stop. Will override position
-  
+
   // Pass bool to fulOpen to avoid
   // fullOpen(false);
 
+  is_moving = true;
+  set_distance = true;
+  enable_driver();
+  driver.VACTUAL(OPEN_VELOCITY);
 }
+
+
 
 
 static void btn2LongPressStartCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 long press click");
 }
+
+
+
+
+
+
+
+
+
+
+
 
 static void btn3SingleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 single click");
@@ -120,6 +184,8 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
   Matter.decommission();
 }
 
+
+
 void setup() {
   Serial.begin(115200);
 
@@ -145,20 +211,20 @@ void setup() {
 
   delay(100);
 
-  preferences.begin("local", false);
+  preferences.begin("preferencess", false);
 
   //load_preferences();
 
-  motor_position = preferences.getInt("motor_pos", 0); // Loads saved motor position
+  // motor_position = preferences.getInt("motor_pos", 0);  // Loads saved motor position
 
-  travel_distance = 20; // Inches. Change this value to change the distance to openS
+  // travel_distance = 20;  // Inches. Change this value to change the distance to openS
 
-  // 200 steps per revolution
-  
-  int revolutions = travel_distance / circumference_in; // How many times the motor need to spin to reach 20 inches
-  int steps_per_revolution = 200;
-  maximum_motor_position = revolutions * steps_per_revolution;//
-  uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
+  // // 200 steps per revolution
+
+  // int revolutions = travel_distance / circumference_in;  // How many times the motor need to spin to reach 20 inches
+  // int steps_per_revolution = 200;
+  // maximum_motor_position = revolutions * steps_per_revolution;  //
+  // uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
 
   setup_motors();
 
@@ -167,7 +233,7 @@ void setup() {
   // Initialize Matter EndPoint
   // matterPref.begin("MatterPrefs", false);
   // default lift percentage is 100% (fully open) if not stored before
-  // uint8_t lastLiftPercent = preferences.getUChar(liftPercentPrefKey, 100);
+  uint8_t lastLiftPercent = preferences.getUChar(liftPercentPrefKey, 100);
 
   // Initialize window covering with BLIND_LIFT type
   WindowBlinds.begin(lastLiftPercent, MatterWindowCovering::DRAPERY);
@@ -214,8 +280,15 @@ void setup() {
   }
 }
 
+
+
 void loop() {
   ArduinoOTA.handle();  // Handles a code update request
+
+  // Keeps the down button from triggering single click on release
+  if (millis() >= pressdown_timer) {
+    pressdown = true;
+  }
 
   // Check Matter Window Covering Commissioning state, which may change during execution of loop()
   if (!Matter.isDeviceCommissioned()) {
@@ -237,40 +310,5 @@ void loop() {
     // Update visualization based on initial state
 
     Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
-  }
-
-  // A button is also used to control the window covering
-  // Check if the button has been pressed
-  if (digitalRead(buttonPin) == LOW && !button_state) {
-    // deals with button debouncing
-    button_time_stamp = millis();  // record the time while the button is pressed.
-    button_state = true;           // pressed.
-  }
-
-  // Onboard User Button is used to manually change lift percentage or to decommission
-  uint32_t time_diff = millis() - button_time_stamp;
-  if (digitalRead(buttonPin) == HIGH && button_state && time_diff > debounceTime) {
-    // Button is released - cycle lift percentage by 20%
-    button_state = false;  // released
-    uint8_t targetLiftPercent = currentLiftPercent;
-    // go to the closest next 20% or move 20% more
-    if ((targetLiftPercent % 20) != 0) {
-      targetLiftPercent = ((targetLiftPercent / 20) + 1) * 20;
-    } else {
-      targetLiftPercent += 20;
-    }
-    if (targetLiftPercent > 100) {
-      targetLiftPercent = 0;
-    }
-    Serial.printf("User button released. Setting lift to %d%%\r\n", targetLiftPercent);
-    WindowBlinds.setTargetLiftPercent100ths(targetLiftPercent * 100);
-  }
-
-  // Onboard User Button is kept pressed for longer than 5 seconds in order to decommission matter node
-  if (button_state && time_diff > decommissioningTimeout) {
-    Serial.println("Decommissioning the Window Covering Matter Accessory. It shall be commissioned again.");
-    WindowBlinds.setLiftPercentage(0);  // close the covering
-    Matter.decommission();
-    button_time_stamp = millis();  // avoid running decommissioning again, reboot takes a second or so
   }
 }
