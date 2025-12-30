@@ -28,9 +28,9 @@ bool stop_flag = false;
 bool overtemp_flag = false;
 
 uint8_t PWM_grad;
-uint32_t target_position;
-int32_t motor_position;
-uint32_t maximum_motor_position;
+int target_position;
+int motor_position;
+int maximum_motor_position;
 uint8_t percent_open;
 
 

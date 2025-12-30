@@ -44,7 +44,7 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
 
       currentLiftPercent = 0;
       WindowBlinds.setLiftPercentage(currentLiftPercent);
-      
+
       set_distance = false;
 
       Serial.print("Motor position: ");
@@ -56,7 +56,11 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
 // Move to full close position
 static void btn1SingleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 single click");
+  Serial.print("Motor position: ");
+  Serial.println(motor_position);
+
   if (pressdown) {
+    Serial.println("pressdown");
     if (is_moving) {
       stop_flag = true;
     } else {
@@ -86,7 +90,7 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   preferences.putInt("motor_pos", motor_position);
 
   currentLiftPercent = 0;
-  WindowBlinds.setLiftPercentage(currentLiftPercent); // Updates Matter to 0 percent position
+  WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
 
   Serial.print("Motor position: ");
   Serial.println(motor_position);
@@ -133,7 +137,11 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 // Move to full Open position
 static void btn2SingleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 single click");
+  Serial.print("Motor position: ");
+  Serial.println(motor_position);
+
   if (pressdown) {
+    Serial.println("pressdown");
     if (is_moving) {
       stop_flag = true;
     } else {

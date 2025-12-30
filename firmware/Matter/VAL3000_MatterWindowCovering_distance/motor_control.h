@@ -190,8 +190,8 @@ bool fullOpen() {
   //   motor_position = 0;
   // }
 
-  printf("target_position open: %lu\n", target_position);  // TESTING
-  printf("motor_position open: %lu\n", motor_position);    // TESTING
+  printf("target_position open: %lu\n", target_position);            // TESTING
+  printf("motor_position open: %lu\n", motor_position);              // TESTING
   printf("max_motor_position open: %lu\n", maximum_motor_position);  // TESTING
   //printf("percent_open close: %lu\n", percent_open);                  // TESTING
 
@@ -223,8 +223,8 @@ bool fullClose() {
   //   motor_position = maximum_motor_position;
   // }
 
-printf("target_position close: %lu\n", target_position);  // TESTING
-  printf("motor_position close: %lu\n", motor_position);    // TESTING
+  printf("target_position close: %lu\n", target_position);            // TESTING
+  printf("motor_position close: %lu\n", motor_position);              // TESTING
   printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
   //printf("percent_open close: %lu\n", percent_open);                  // TESTING
 
@@ -342,6 +342,7 @@ void position_watcher_task(void *parameter) {
           goto notify_and_suspend;
         }
       } else {
+        Serial.println("OPENING");
         if (motor_position >= target_position) {
           //printf("position_watcher_task STOPPING because target_position: %u <= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
           printf("position_watcher_task STOPPING because motor_position: %u >= target_position: %u\n", (unsigned int)motor_position, (unsigned int)target_position);
