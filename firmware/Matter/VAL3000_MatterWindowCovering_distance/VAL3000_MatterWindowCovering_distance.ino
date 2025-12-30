@@ -139,21 +139,9 @@ static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
 }
 
 
-
-
 static void btn2LongPressStartCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 long press click");
 }
-
-
-
-
-
-
-
-
-
-
 
 
 static void btn3SingleClickCb(void *button_handle, void *usr_data) {
@@ -187,7 +175,7 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
 
 
 void setup() {
-  Serial.begin(115200);
+   Serial.begin(115200);
 
   Button btn1 = Button(BUTTON_1_PIN, false);    //BUTTON_1_PIN
   Button btn2 = Button(BUTTON_2_PIN, false);    //BUTTON_1_PIN
@@ -228,7 +216,7 @@ void setup() {
 
   setup_motors();
 
-  ArduinoOTA.begin();
+  //ArduinoOTA.begin();
 
   // Initialize Matter EndPoint
   // matterPref.begin("MatterPrefs", false);
@@ -283,7 +271,7 @@ void setup() {
 
 
 void loop() {
-  ArduinoOTA.handle();  // Handles a code update request
+  //ArduinoOTA.handle();  // Handles a code update request
 
   // Keeps the down button from triggering single click on release
   if (millis() >= pressdown_timer) {
