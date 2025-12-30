@@ -421,7 +421,7 @@ void position_watcher_task(void *parameter) {
 
     while (is_moving) {
 
-      Serial.println(motor_position);
+      //Serial.println(motor_position);
       loop1++;
 
       // check if button was pressed
@@ -450,7 +450,7 @@ void position_watcher_task(void *parameter) {
           goto notify_and_suspend;
         }
       } else {
-        Serial.println("OPENING");
+        //Serial.println("OPENING");
         if (motor_position >= target_position) {
           //printf("position_watcher_task STOPPING because target_position: %u <= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
           printf("position_watcher_task STOPPING because motor_position: %u >= target_position: %u\n", (unsigned int)motor_position, (unsigned int)target_position);
@@ -461,9 +461,10 @@ void position_watcher_task(void *parameter) {
       }
 
       // Update position in Matter every once is a while
-      if (loop1 >= 10) {
-        currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
-        WindowBlinds.setLiftPercentage(currentLiftPercent);
+      if (loop1 >= 20) {
+        // currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
+        // WindowBlinds.setLiftPercentage(currentLiftPercent);
+        Serial.println(motor_position);
         loop1 = 0;
       }
 

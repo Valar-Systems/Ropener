@@ -32,13 +32,18 @@ bool set_distance;
 static void btn1PressDownCb(void *button_handle, void *usr_data) {
   Serial.println("Button pressed down");
   if (is_moving) {
+    Serial.println("Stop Flag");
     stop_flag = true;
+
+    pressdown = false;
+    pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
+
     if (set_distance) {
       disable_driver();
       driver.VACTUAL(STOP_MOTOR_VELOCITY);
-      
-      pressdown = false;
-      pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer
+
+      // pressdown = false;
+      // pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer
       motor_position = 0;
       preferences.putInt("motor_pos", motor_position);
 
@@ -50,7 +55,7 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
       Serial.print("Motor position: ");
       Serial.println(motor_position);
     }
-    is_moving = false; // Is this needed?
+    is_moving = false;  // Is this needed?
   }
 }
 
@@ -76,7 +81,7 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
   // Create function for this?
   // Set velocity full
   //
-  
+
   is_closing = true;
   set_distance = true;
   // create function for this?
@@ -92,7 +97,7 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   motor_position = 0;
   preferences.putInt("motor_pos", motor_position);
 
-  currentLiftPercent = 100;                            // 0
+  currentLiftPercent = 100;            // 0
   WindowBlinds.setLiftPercentage(99);  // Updates Matter to 100 percent closed position
   delay(100);
   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
@@ -106,11 +111,16 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
 static void btn2PressDownCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 pressed down");
   if (is_moving) {
+    Serial.println("Stop Flag");
     stop_flag = true;
+
+    pressdown = false;
+    pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
+
     if (set_distance) {
       disable_driver();
       driver.VACTUAL(STOP_MOTOR_VELOCITY);
-      
+
       maximum_motor_position = motor_position;
       preferences.putInt("motor_pos", motor_position);
       preferences.putInt("max_motor_pos", motor_position);
@@ -119,11 +129,11 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 
       set_distance = false;
 
-      pressdown = false;
-      pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
+      // pressdown = false;
+      // pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
       Serial.println("Updating Matter");
-      currentLiftPercent = 0; // 0 percent open = 100 percent closed                           
+      currentLiftPercent = 0;                              // 0 percent open = 100 percent closed
       WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
       delay(100);
       WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
@@ -138,7 +148,7 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       // 3.7699 cm per revolution
       //WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
     }
-    is_moving = false; // is this required
+    is_moving = false;  // is this required
   }
 }
 
@@ -148,7 +158,7 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
   Serial.print("Motor position: ");
   Serial.println(motor_position);
 
-  if (pressdown) {
+  if (pressdown) {  // not working
     Serial.println("pressdown");
     if (is_moving) {
       stop_flag = true;
@@ -214,7 +224,7 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
 
 void setup() {
 
-    
+
 
   Serial.begin(115200);
 
