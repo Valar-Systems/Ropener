@@ -31,7 +31,7 @@ uint8_t PWM_grad;
 uint32_t target_position;
 int32_t motor_position;
 uint32_t maximum_motor_position;
-uint8_t target_percent;
+uint8_t percent_open;
 
 
 
@@ -59,9 +59,6 @@ Preferences preferences;
 //Preferences matterPref;
 const char *liftPercentPrefKey = "LiftPercent";
 
-// set your board USER BUTTON pin here
-const uint8_t buttonPin = BOOT_PIN;  // Set your pin here. Using BOOT Button.
-
 // Button control
 uint32_t button_time_stamp = 0;                // debouncing control
 bool button_state = false;                     // false = released | true = pressed
@@ -70,7 +67,7 @@ const uint32_t decommissioningTimeout = 5000;  // keep the button pressed for 5s
 
 // Window covering limits
 // Lift limits in centimeters (physical position)
-const uint16_t MAX_LIFT = 200;  // Maximum lift position (fully open)
+uint16_t MAX_LIFT = 200;  // Maximum lift position (fully open)
 const uint16_t MIN_LIFT = 0;    // Minimum lift position (fully closed)
 
 // Current window covering state
@@ -95,7 +92,9 @@ void load_preferences() {
   opening_direction = preferences.getInt("open_dir", 0);
   is_cm = preferences.getInt("is_cm", 0);
   travel_distance = preferences.getInt("travel_dist", 20);
-  target_percent = ((float)motor_position / (float)maximum_motor_position) * 100;
+  percent_open = ((float)motor_position / (float)maximum_motor_position) * 100;
+  currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
+
 
   Serial.println("FINISHED LOADING PREFERENCES");
 }

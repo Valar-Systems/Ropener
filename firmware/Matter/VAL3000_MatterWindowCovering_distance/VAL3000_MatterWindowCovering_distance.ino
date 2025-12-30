@@ -71,24 +71,17 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
   driver.VACTUAL(CLOSE_VELOCITY);
 }
 
-// If not moving, sets zero position
+// Sets zero position
 static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 long press click");
 
-  if (!is_moving) {
-  }
-  // Override position. Turn motor until button is pressed. (Set to close position once button is pressed. If this is the close direction?)
+  motor_position = 0;
+  preferences.putInt("motor_pos", motor_position);
+  WindowBlinds.setTargetLiftPercent100ths(motor_position * 100);
 }
 
 
-
-
-
-
-
-
-
-
+// BUTTON 2
 static void btn2PressDownCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 pressed down");
   if (is_moving) {
@@ -106,6 +99,16 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       pressdown_timer = millis() + 1000;  //start timer to ignore release for 1 second
       int targetLiftPercent = 100;
       WindowBlinds.setTargetLiftPercent100ths(targetLiftPercent * 100);
+
+      //Convert distance to centimeters
+      int revolutions;
+      revolutions = motor_position / 200; // may equal zero
+
+      MAX_LIFT = revolutions * 3.7699; // may equal zero
+      //motor_position / 200 = motor revolutions
+
+      // 3.7699 cm per revolution
+      WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
     }
   }
 }
@@ -145,7 +148,11 @@ static void btn2LongPressStartCb(void *button_handle, void *usr_data) {
 
 
 static void btn3SingleClickCb(void *button_handle, void *usr_data) {
-  Serial.println("Button2 single click");
+  Serial.println("Button3 single click");
+
+
+
+
 }
 
 // Changes the opening direction of Button1 and Button2
@@ -175,7 +182,7 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
 
 
 void setup() {
-   Serial.begin(115200);
+  Serial.begin(115200);
 
   Button btn1 = Button(BUTTON_1_PIN, false);    //BUTTON_1_PIN
   Button btn2 = Button(BUTTON_2_PIN, false);    //BUTTON_1_PIN
@@ -216,10 +223,9 @@ void setup() {
 
   setup_motors();
 
-  //ArduinoOTA.begin();
+  //ArduinoOTA.begin(); // Causes crash
 
   // Initialize Matter EndPoint
-  // matterPref.begin("MatterPrefs", false);
   // default lift percentage is 100% (fully open) if not stored before
   uint8_t lastLiftPercent = preferences.getUChar(liftPercentPrefKey, 100);
 

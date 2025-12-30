@@ -40,18 +40,19 @@ void IRAM_ATTR stall_interrupt() {
 // Interrupt tracks the position of the stepper motor using the index pin
 void IRAM_ATTR index_interrupt(void) {
 
-  if (is_closing == true) {
-    motor_position++;
-  } else {
+  if (is_closing) {
     motor_position--;
+  } else {
+    motor_position++;
   }
 
   // Ensure motor position stays within bounds
-  if (motor_position < 0) {
-    motor_position = 0;
-  } else if (motor_position > maximum_motor_position) {
-    motor_position = maximum_motor_position;
-  }
+  // if (motor_position < 0) {
+  //   motor_position = 0;
+  // } else if (motor_position > maximum_motor_position) {
+  //   motor_position = maximum_motor_position;
+  // }
+  
 }
 
 int getMotorPosition() {
@@ -69,13 +70,13 @@ void disable_driver() {
   digitalWrite(ENABLE_PIN, 1);
 }
 
-void setCloseCall() {
-  Serial.println("Button Pressed");
-  motor_position = maximum_motor_position;
-  target_percent = 100;
-  Serial.print("set close position: ");
-  Serial.println(target_percent);
-}
+// void setCloseCall() {
+//   Serial.println("Button Pressed");
+//   motor_position = 0;
+//   percent_open = 0;
+//   Serial.print("set close position: ");
+//   Serial.println(target_percent);
+// }
 
 
 /*
@@ -193,7 +194,7 @@ bool fullOpen() {
   printf("target_position close: %lu\n", target_position);  // TESTING
 
   printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
-  printf("target_percent close: %lu\n", target_percent);              // TESTING
+  printf("percent_open close: %lu\n", percent_open);              // TESTING
 
   stop_flag = false;
   is_closing = false;
@@ -210,7 +211,7 @@ bool fullOpen() {
 
 bool fullClose() {
   // This is where you would trigger your motor to go to full close state
-  // For simulation, we update instantly
+ 
   uint16_t closedLimit = WindowBlinds.getInstalledClosedLimitLift();
   currentLift = closedLimit;
   currentLiftPercent = 0;
