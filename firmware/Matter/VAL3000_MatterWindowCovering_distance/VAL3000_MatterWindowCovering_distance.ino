@@ -17,6 +17,7 @@ MatterWindowCovering WindowBlinds;
 
 #include <ArduinoOTA.h>  // For enabling over-the-air updates
 
+#define PRESSDOWN_DELAY 1500
 
 bool set_distance;
 
@@ -37,11 +38,17 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
       driver.VACTUAL(STOP_MOTOR_VELOCITY);
       is_moving = false;
       pressdown = false;
-      pressdown_timer = millis() + 1000;  //start timer
+      pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer
       motor_position = 0;
       preferences.putInt("motor_pos", motor_position);
-      WindowBlinds.setTargetLiftPercent100ths(motor_position * 100);
+
+      currentLiftPercent = 0;
+      WindowBlinds.setLiftPercentage(currentLiftPercent);
+      
       set_distance = false;
+
+      Serial.print("Motor position: ");
+      Serial.println(motor_position);
     }
   }
 }
@@ -77,7 +84,12 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
 
   motor_position = 0;
   preferences.putInt("motor_pos", motor_position);
-  WindowBlinds.setTargetLiftPercent100ths(motor_position * 100);
+
+  currentLiftPercent = 0;
+  WindowBlinds.setLiftPercentage(currentLiftPercent); // Updates Matter to 0 percent position
+
+  Serial.print("Motor position: ");
+  Serial.println(motor_position);
 }
 
 
@@ -93,18 +105,23 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       maximum_motor_position = motor_position;
       preferences.putInt("motor_pos", motor_position);
       preferences.putInt("max_motor_pos", motor_position);
+      Serial.print("Motor position: ");
+      Serial.println(motor_position);
+
       set_distance = false;
 
       pressdown = false;
-      pressdown_timer = millis() + 1000;  //start timer to ignore release for 1 second
-      int targetLiftPercent = 100;
-      WindowBlinds.setTargetLiftPercent100ths(targetLiftPercent * 100);
+      pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
+      int currentLiftPercent = 100;
+      Serial.println("Updating Matter");
+      WindowBlinds.setLiftPercentage(currentLiftPercent);
+      //WindowBlinds.setTargetLiftPercent100ths(targetLiftPercent * 100);
 
       //Convert distance to centimeters
       int revolutions;
-      revolutions = motor_position / 200; // may equal zero
+      revolutions = motor_position / 200;  // may equal zero
 
-      MAX_LIFT = revolutions * 3.7699; // may equal zero
+      MAX_LIFT = revolutions * 3.7699;  // may equal zero
       //motor_position / 200 = motor revolutions
 
       // 3.7699 cm per revolution
@@ -135,6 +152,7 @@ static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
   // Pass bool to fulOpen to avoid
   // fullOpen(false);
 
+  is_closing = false;
   is_moving = true;
   set_distance = true;
   enable_driver();
@@ -149,10 +167,6 @@ static void btn2LongPressStartCb(void *button_handle, void *usr_data) {
 
 static void btn3SingleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button3 single click");
-
-
-
-
 }
 
 // Changes the opening direction of Button1 and Button2

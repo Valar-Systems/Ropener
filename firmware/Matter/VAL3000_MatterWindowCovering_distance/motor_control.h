@@ -18,8 +18,8 @@ uint16_t positionLabel;
 #define DRIVER_ADDRESS 0b00  // TMC2209 Driver address according to MS1 and MS2
 #define R_SENSE 0.11f        // R_SENSE for current calc.
 
-#define CLOSE_VELOCITY 600
-#define OPEN_VELOCITY -600
+#define OPEN_VELOCITY 600
+#define CLOSE_VELOCITY -600
 #define STOP_MOTOR_VELOCITY 0
 
 // function prototypes
@@ -52,7 +52,6 @@ void IRAM_ATTR index_interrupt(void) {
   // } else if (motor_position > maximum_motor_position) {
   //   motor_position = maximum_motor_position;
   // }
-  
 }
 
 int getMotorPosition() {
@@ -177,65 +176,69 @@ void move_open() {
 
 // Window Covering Callbacks
 bool fullOpen() {
+
+  target_position = maximum_motor_position;
+
   // This is where you would trigger your motor to go to full open state
-  // For simulation, we update instantly
-  uint16_t openLimit = WindowBlinds.getInstalledOpenLimitLift();
-  currentLift = openLimit;
-  currentLiftPercent = 100;
-  Serial.printf("Opening window covering to full open (position: %d cm)\r\n", currentLift);
 
+  // uint16_t openLimit = WindowBlinds.getInstalledOpenLimitLift();
+  // currentLift = openLimit;
+  // currentLiftPercent = 100;
+  // Serial.printf("Opening window covering to full open (position: %d cm)\r\n", currentLift);
 
-  /////////////////
-  if (motor_position < 0) {
-    motor_position = 0;
-  }
+  // if (motor_position < 0) {
+  //   motor_position = 0;
+  // }
 
-  printf("motor_position close: %lu\n", motor_position);    // TESTING
-  printf("target_position close: %lu\n", target_position);  // TESTING
-
-  printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
-  printf("percent_open close: %lu\n", percent_open);              // TESTING
+  printf("target_position open: %lu\n", target_position);  // TESTING
+  printf("motor_position open: %lu\n", motor_position);    // TESTING
+  printf("max_motor_position open: %lu\n", maximum_motor_position);  // TESTING
+  //printf("percent_open close: %lu\n", percent_open);                  // TESTING
 
   stop_flag = false;
   is_closing = false;
   is_moving = true;
 
-  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
-
-  enable_driver();
-  // Add for loop for acceleration
-  driver.VACTUAL(OPEN_VELOCITY);
+  if (target_position == motor_position) {
+    Serial.println("target_position == motor_position");
+  } else {
+    xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+    enable_driver();
+    driver.VACTUAL(OPEN_VELOCITY);
+  }
 
   return true;
 }
 
 bool fullClose() {
   // This is where you would trigger your motor to go to full close state
- 
-  uint16_t closedLimit = WindowBlinds.getInstalledClosedLimitLift();
-  currentLift = closedLimit;
-  currentLiftPercent = 0;
-  Serial.printf("Closing window covering to full close (position: %d cm)\r\n", currentLift);
+  target_position = 0;
 
-  if (motor_position > maximum_motor_position) {
-    motor_position = maximum_motor_position;
-  }
+  // uint16_t closedLimit = WindowBlinds.getInstalledClosedLimitLift();
+  // currentLift = closedLimit;
+  // currentLiftPercent = 0;
+  // Serial.printf("Closing window covering to full close (position: %d cm)\r\n", currentLift);
 
-  // printf("motor_position close: %lu\n", motor_position);    // TESTING
-  // printf("target_position close: %lu\n", target_position);  // TESTING
+  // if (motor_position > maximum_motor_position) {
+  //   motor_position = maximum_motor_position;
+  // }
 
-  // printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
-  // printf("target_percent close: %lu\n", target_percent);  // TESTING
+printf("target_position close: %lu\n", target_position);  // TESTING
+  printf("motor_position close: %lu\n", motor_position);    // TESTING
+  printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
+  //printf("percent_open close: %lu\n", percent_open);                  // TESTING
 
   stop_flag = false;
   is_closing = true;
   is_moving = true;
 
-  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
-
-  enable_driver();
-  // Add for loop for acceleration
-  driver.VACTUAL(CLOSE_VELOCITY);
+  if (target_position == motor_position) {
+    Serial.println("target_position == motor_position");
+  } else {
+    xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+    enable_driver();
+    driver.VACTUAL(CLOSE_VELOCITY);
+  }
 
   return true;
 }
@@ -332,21 +335,24 @@ void position_watcher_task(void *parameter) {
 
       // /* Check if Position reached */
       if (is_closing) {
-        if (motor_position >= target_position) {
-          printf("position_watcher STOPPING because target_position: %u <= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
+        if (motor_position <= target_position) {
+          //printf("position_watcher STOPPING because target_position: %u >= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
+          printf("position_watcher STOPPING because motor_position: %u <= target_position: %u\n", (unsigned int)motor_position, (unsigned int)target_position);
           stop();
           goto notify_and_suspend;
         }
       } else {
-        if (motor_position <= target_position) {
-          printf("position_watcher_task STOPPING because target_position: %u >= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
+        if (motor_position >= target_position) {
+          //printf("position_watcher_task STOPPING because target_position: %u <= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
+          printf("position_watcher_task STOPPING because motor_position: %u >= target_position: %u\n", (unsigned int)motor_position, (unsigned int)target_position);
+
           stop();
           goto notify_and_suspend;
         }
       }
 
       // Update position in Matter every once is a while
-        if(loop1 >= 100){
+      if (loop1 >= 10) {
         currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
         WindowBlinds.setLiftPercentage(currentLiftPercent);
         loop1 = 0;
@@ -413,7 +419,7 @@ void setup_motors() {
   driver.TPWMTHRS(0);
   driver.VACTUAL(0);
 
-  driver.irun(20);       // Max current
+  driver.irun(20);  // Max current
 
   driver.TCOOLTHRS(80);  // 20 to turn off coolstep to test vibrations//600 ok//
 
