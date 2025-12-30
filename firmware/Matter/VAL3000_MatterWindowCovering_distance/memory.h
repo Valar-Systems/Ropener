@@ -83,7 +83,7 @@ void load_preferences() {
 
   Serial.println("LOADING PREFERENCES");
 
-  maximum_motor_position = preferences.getInt("max_motor_pos", 2695); // defaults to 20 inches
+  maximum_motor_position = preferences.getInt("max_motor_pos", 500); // defaults to 20 inches
   motor_position = preferences.getInt("motor_pos", 0);
   current = preferences.getLong("current", 1000);
   stall = preferences.getInt("stall", 10);
@@ -94,7 +94,6 @@ void load_preferences() {
   travel_distance = preferences.getInt("travel_dist", 20);
   percent_open = ((float)motor_position / (float)maximum_motor_position) * 100;
   currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
-
-
+  
   Serial.println("FINISHED LOADING PREFERENCES");
 }

@@ -36,7 +36,7 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
     if (set_distance) {
       disable_driver();
       driver.VACTUAL(STOP_MOTOR_VELOCITY);
-      is_moving = false;
+      
       pressdown = false;
       pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer
       motor_position = 0;
@@ -50,13 +50,14 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
       Serial.print("Motor position: ");
       Serial.println(motor_position);
     }
+    is_moving = false; // Is this needed?
   }
 }
 
 // Move to full close position
 static void btn1SingleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 single click");
-  Serial.print("Motor position: ");
+  Serial.print("motor_position: ");
   Serial.println(motor_position);
 
   if (pressdown) {
@@ -75,11 +76,13 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
   // Create function for this?
   // Set velocity full
   //
-  is_moving = true;
+  
   is_closing = true;
   set_distance = true;
+  // create function for this?
   enable_driver();
   driver.VACTUAL(CLOSE_VELOCITY);
+  is_moving = true;
 }
 
 // Sets zero position
@@ -89,8 +92,10 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   motor_position = 0;
   preferences.putInt("motor_pos", motor_position);
 
-  currentLiftPercent = 0;
-  WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
+  currentLiftPercent = 100;                            // 0
+  WindowBlinds.setLiftPercentage(99);  // Updates Matter to 100 percent closed position
+  delay(100);
+  WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
   Serial.print("Motor position: ");
   Serial.println(motor_position);
@@ -105,7 +110,7 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
     if (set_distance) {
       disable_driver();
       driver.VACTUAL(STOP_MOTOR_VELOCITY);
-      is_moving = false;
+      
       maximum_motor_position = motor_position;
       preferences.putInt("motor_pos", motor_position);
       preferences.putInt("max_motor_pos", motor_position);
@@ -116,10 +121,12 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 
       pressdown = false;
       pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
-      int currentLiftPercent = 100;
+
       Serial.println("Updating Matter");
-      WindowBlinds.setLiftPercentage(currentLiftPercent);
-      //WindowBlinds.setTargetLiftPercent100ths(targetLiftPercent * 100);
+      currentLiftPercent = 0; // 0 percent open = 100 percent closed                           
+      WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
+      delay(100);
+      WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
       //Convert distance to centimeters
       int revolutions;
@@ -129,8 +136,9 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       //motor_position / 200 = motor revolutions
 
       // 3.7699 cm per revolution
-      WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
+      //WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
     }
+    is_moving = false; // is this required
   }
 }
 
@@ -161,10 +169,11 @@ static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
   // fullOpen(false);
 
   is_closing = false;
-  is_moving = true;
   set_distance = true;
+
   enable_driver();
   driver.VACTUAL(OPEN_VELOCITY);
+  is_moving = true;
 }
 
 
@@ -204,6 +213,9 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
 
 
 void setup() {
+
+    
+
   Serial.begin(115200);
 
   Button btn1 = Button(BUTTON_1_PIN, false);    //BUTTON_1_PIN
@@ -230,7 +242,7 @@ void setup() {
 
   preferences.begin("preferencess", false);
 
-  //load_preferences();
+  load_preferences();
 
   // motor_position = preferences.getInt("motor_pos", 0);  // Loads saved motor position
 
@@ -244,8 +256,6 @@ void setup() {
   // uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
 
   setup_motors();
-
-  //ArduinoOTA.begin(); // Causes crash
 
   // Initialize Matter EndPoint
   // default lift percentage is 100% (fully open) if not stored before
@@ -293,7 +303,13 @@ void setup() {
     Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
     Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
     // Update visualization based on initial state
+
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
   }
+
+  //Matter.decommission(); // Button 3 not working // TESTING
+
+  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
 }
 
 
@@ -305,6 +321,10 @@ void loop() {
   if (millis() >= pressdown_timer) {
     pressdown = true;
   }
+
+  // Serial.print("is_moving: ");
+  // Serial.println(is_moving);
+  // delay(100);
 
   // Check Matter Window Covering Commissioning state, which may change during execution of loop()
   if (!Matter.isDeviceCommissioned()) {
