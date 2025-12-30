@@ -78,10 +78,10 @@ bool button_state = false;                     // false = released | true = pres
 const uint32_t debounceTime = 250;             // button debouncing time (ms)
 const uint32_t decommissioningTimeout = 5000;  // keep the button pressed for 5s, or longer, to decommission
 
-// Window covering limits
-// Lift limits in centimeters (physical position)
-const uint16_t MAX_LIFT = 200;  // Maximum lift position (fully open)
-const uint16_t MIN_LIFT = 0;    // Minimum lift position (fully closed)
+// // Window covering limits
+// // Lift limits in centimeters (physical position)
+// const uint16_t MAX_LIFT = 200;  // Maximum lift position (fully open)
+// const uint16_t MIN_LIFT = 0;    // Minimum lift position (fully closed)
 
 // Current window covering state
 // These will be initialized in setup() based on installed limits and saved percentages

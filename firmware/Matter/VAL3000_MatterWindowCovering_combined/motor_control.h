@@ -229,8 +229,14 @@ bool fullClose() {
   stop_flag = false;
   is_closing = true;
   is_moving = true;
-
+  
+  //if close_until_stop == false
   xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+  // else
+  // Different position watcher task without positioning. Waits until stop_flag is pressed, then sets position to 0
+  //xTaskCreate(position_watcher_task_end, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+
+
 
   enable_driver();
   // Add for loop for acceleration

@@ -48,15 +48,14 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 double click");
   // Create function for this?
   // Set velocity full
-  // 
+  //
 }
 
 // If not moving, sets zero position
 static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   Serial.println("Button1 long press click");
 
-  if (!is_moving){
-
+  if (!is_moving) {
   }
   // Override position. Turn motor until button is pressed. (Set to close position once button is pressed. If this is the close direction?)
 }
@@ -81,10 +80,9 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 double click");
   // Move the motor until pressed to stop. Will override position
-  
+
   // Pass bool to fulOpen to avoid
   // fullOpen(false);
-
 }
 
 
@@ -149,15 +147,15 @@ void setup() {
 
   //load_preferences();
 
-  motor_position = preferences.getInt("motor_pos", 0); // Loads saved motor position
+  motor_position = preferences.getInt("motor_pos", 0);  // Loads saved motor position
 
-  travel_distance = 20; // Inches. Change this value to change the distance to openS
+  travel_distance = 20;  // Inches. Change this value to change the distance to openS
 
   // 200 steps per revolution
-  
-  int revolutions = travel_distance / circumference_in; // How many times the motor need to spin to reach 20 inches
+
+  int revolutions = travel_distance / circumference_in;  // How many times the motor need to spin to reach 20 inches
   int steps_per_revolution = 200;
-  maximum_motor_position = revolutions * steps_per_revolution;//
+  maximum_motor_position = revolutions * steps_per_revolution;  //
   uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
 
   setup_motors();
@@ -173,6 +171,12 @@ void setup() {
   WindowBlinds.begin(lastLiftPercent, MatterWindowCovering::DRAPERY);
 
   // Configure installed limits for lift
+
+  // Window covering limits
+  // Lift limits in centimeters (physical position)
+  const uint16_t MAX_LIFT = travel_distance * 2.54f;  // Maximum lift position (fully open)
+  const uint16_t MIN_LIFT = 0;                        // Minimum lift position (fully closed)
+
   WindowBlinds.setInstalledOpenLimitLift(MIN_LIFT);
   WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
 
