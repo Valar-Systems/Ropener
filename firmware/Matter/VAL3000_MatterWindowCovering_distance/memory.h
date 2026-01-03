@@ -85,12 +85,12 @@ void load_preferences() {
 
   maximum_motor_position = preferences.getInt("max_motor_pos", 500); // defaults to 20 inches
   motor_position = preferences.getInt("motor_pos", 0);
-  current = preferences.getLong("current", 1000);
-  stall = preferences.getInt("stall", 10);
-  accel = preferences.getInt("accel", 10000);
-  max_speed = preferences.getInt("max_speed", 30000);
+  // current = preferences.getLong("current", 1000);
+  // stall = preferences.getInt("stall", 10);
+  // accel = preferences.getInt("accel", 10000);
+  // max_speed = preferences.getInt("max_speed", 30000);
   opening_direction = preferences.getInt("open_dir", 0);
-  is_cm = preferences.getInt("is_cm", 0);
+  // is_cm = preferences.getInt("is_cm", 0);
   travel_distance = preferences.getInt("travel_dist", 20);
   percent_open = ((float)motor_position / (float)maximum_motor_position) * 100;
   currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;

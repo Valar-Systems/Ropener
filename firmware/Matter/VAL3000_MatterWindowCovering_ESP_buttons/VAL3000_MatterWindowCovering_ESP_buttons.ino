@@ -20,6 +20,19 @@
 // #endif
 #include <Preferences.h>
 
+#include <Button.h>
+
+#define ENABLE_PIN 8
+#define RX_PIN 5
+#define TX_PIN 6
+#define STALLGUARD_PIN 1
+#define INDEX_PIN 0
+
+#define BUTTON_1_PIN GPIO_NUM_4
+#define BUTTON_2_PIN GPIO_NUM_3
+#define WIFI_RESET_PIN GPIO_NUM_7
+
+#define buttonPin GPIO_NUM_4
 // List of Matter Endpoints for this Node
 // Window Covering Endpoint
 MatterWindowCovering WindowBlinds;
@@ -35,8 +48,6 @@ MatterWindowCovering WindowBlinds;
 Preferences matterPref;
 const char *liftPercentPrefKey = "LiftPercent";
 
-// set your board USER BUTTON pin here
-const uint8_t buttonPin = GPIO_NUM_4;  // Set your pin here. Using BOOT Button.
 
 // Button control
 uint32_t button_time_stamp = 0;                // debouncing control
@@ -147,9 +158,32 @@ bool stopMotor() {
   return true;
 }
 
+
+static void btn3SingleClickCb(void *button_handle, void *usr_data) {
+  Serial.println("Button3 single click");
+}
+
+// Changes the opening direction of Button1 and Button2
+static void btn3DoubleClickCb(void *button_handle, void *usr_data) {
+  Serial.println("Button3 double click");
+
+}
+
+static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
+  Serial.println("Button3 long press click");
+  //Reset matter
+  Serial.println("Decommissioning the Window Covering Matter Accessory. It shall be commissioned again.");
+  WindowBlinds.setLiftPercentage(0);  // close the covering
+  Matter.decommission();
+}
+
 void setup() {
   // Initialize the USER BUTTON (Boot button) GPIO
-  pinMode(buttonPin, INPUT_PULLUP);
+  Button btn3 = Button(WIFI_RESET_PIN, false);  //WIFI_RESET_PIN
+
+  btn3.attachSingleClickEventCb(&btn3SingleClickCb, NULL);
+  btn3.attachDoubleClickEventCb(&btn3DoubleClickCb, NULL);
+  btn3.attachLongPressStartEventCb(&btn3LongPressStartCb, NULL);
 
   Serial.begin(115200);
   Serial.println("Starting");
@@ -222,61 +256,17 @@ void setup() {
   }
 }
 
+// unsigned long previousMillis = 0;
+// const long interval = 3000;  // 3 second
+
 void loop() {
   // Check Matter Window Covering Commissioning state, which may change during execution of loop()
-  if (!Matter.isDeviceCommissioned()) {
-    Serial.println("");
-    Serial.println("Matter Node is not commissioned yet.");
-    Serial.println("Initiate the device discovery in your Matter environment.");
-    Serial.println("Commission it to your Matter hub with the manual pairing code or QR code");
-    Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-    Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
-    // waits for Matter Window Covering Commissioning.
-    uint32_t timeCount = 0;
-    while (!Matter.isDeviceCommissioned()) {
-      delay(100);
-      if ((timeCount++ % 50) == 0) {  // 50*100ms = 5 sec
-        Serial.println("Matter Node not commissioned yet. Waiting for commissioning.");
-      }
-    }
-    Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
-    // Update visualization based on initial state
+  // unsigned long currentMillis = millis();
+  // if (currentMillis - previousMillis >= interval) {
+  //   previousMillis = currentMillis;                             // Save the time of the last event
+  //   Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
+  //   UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
+  //   Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
+  // }
 
-    Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
-  }
-
-  // A button is also used to control the window covering
-  // Check if the button has been pressed
-  if (digitalRead(buttonPin) == LOW && !button_state) {
-    // deals with button debouncing
-    button_time_stamp = millis();  // record the time while the button is pressed.
-    button_state = true;           // pressed.
-  }
-
-  // Onboard User Button is used to manually change lift percentage or to decommission
-  uint32_t time_diff = millis() - button_time_stamp;
-  if (digitalRead(buttonPin) == HIGH && button_state && time_diff > debounceTime) {
-    // Button is released - cycle lift percentage by 20%
-    button_state = false;  // released
-    uint8_t targetLiftPercent = currentLiftPercent;
-    // go to the closest next 20% or move 20% more
-    if ((targetLiftPercent % 20) != 0) {
-      targetLiftPercent = ((targetLiftPercent / 20) + 1) * 20;
-    } else {
-      targetLiftPercent += 20;
-    }
-    if (targetLiftPercent > 100) {
-      targetLiftPercent = 0;
-    }
-    Serial.printf("User button released. Setting lift to %d%%\r\n", targetLiftPercent);
-    WindowBlinds.setTargetLiftPercent100ths(targetLiftPercent * 100);
-  }
-
-  // Onboard User Button is kept pressed for longer than 5 seconds in order to decommission matter node
-  if (button_state && time_diff > decommissioningTimeout) {
-    Serial.println("Decommissioning the Window Covering Matter Accessory. It shall be commissioned again.");
-    WindowBlinds.setLiftPercentage(0);  // close the covering
-    Matter.decommission();
-    button_time_stamp = millis();  // avoid running decommissioning again, reboot takes a second or so
-  }
 }

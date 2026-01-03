@@ -169,8 +169,6 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
 }
 
 
-
-
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
   Serial.println("Button2 double click");
   // Move the motor until pressed to stop. Will override position
@@ -224,13 +222,11 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
 
 void setup() {
 
-
-
   Serial.begin(115200);
 
   Button btn1 = Button(BUTTON_1_PIN, false);    //BUTTON_1_PIN
-  Button btn2 = Button(BUTTON_2_PIN, false);    //BUTTON_1_PIN
-  Button btn3 = Button(WIFI_RESET_PIN, false);  //BUTTON_1_PIN
+  Button btn2 = Button(BUTTON_2_PIN, false);    //BUTTON_2_PIN
+  Button btn3 = Button(WIFI_RESET_PIN, false);  //WIFI_RESET_PIN
 
   btn1.attachPressDownEventCb(&btn1PressDownCb, NULL);
   btn1.attachSingleClickEventCb(&btn1SingleClickCb, NULL);
@@ -266,6 +262,13 @@ void setup() {
   // uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
 
   setup_motors();
+
+  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+
+  Serial.println("Check 1");                                  // Print the free heap memory in bytes
+  Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
+  UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
+  Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
 
   // Initialize Matter EndPoint
   // default lift percentage is 100% (fully open) if not stored before
@@ -316,13 +319,14 @@ void setup() {
 
     WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
   }
-
-  //Matter.decommission(); // Button 3 not working // TESTING
-
-  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
 }
 
 
+unsigned long previousMillis = 0;
+const long interval = 3000;  // 3 second
+
+unsigned long previousMillis2 = 0;
+const long interval2 = 5000;  // 2 second
 
 void loop() {
   //ArduinoOTA.handle();  // Handles a code update request
@@ -332,29 +336,53 @@ void loop() {
     pressdown = true;
   }
 
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;                             // Save the time of the last event
+    Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
+    UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
+    Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
+  }
+
+
+
+
   // Serial.print("is_moving: ");
   // Serial.println(is_moving);
   // delay(100);
 
-  // Check Matter Window Covering Commissioning state, which may change during execution of loop()
-  if (!Matter.isDeviceCommissioned()) {
-    Serial.println("");
-    Serial.println("Matter Node is not commissioned yet.");
-    Serial.println("Initiate the device discovery in your Matter environment.");
-    Serial.println("Commission it to your Matter hub with the manual pairing code or QR code");
-    Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-    Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
-    // waits for Matter Window Covering Commissioning.
-    uint32_t timeCount = 0;
-    while (!Matter.isDeviceCommissioned()) {
-      delay(100);
-      if ((timeCount++ % 50) == 0) {  // 50*100ms = 5 sec
-        Serial.println("Matter Node not commissioned yet. Waiting for commissioning.");
-      }
-    }
-    Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
-    // Update visualization based on initial state
 
-    Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
+  unsigned long currentMillis2 = millis();
+  if (currentMillis2 - previousMillis2 >= interval2) {
+    previousMillis2 = currentMillis2;  // Save the time of the last event
+
+    if (!Matter.isDeviceCommissioned()) {
+      Serial.println("Matter Node is not commissioned yet.");
+      Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
+      Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+    }
   }
+
+  // Check Matter Window Covering Commissioning state, which may change during execution of loop()
+
+  //   Serial.println("Initiate the device discovery in your Matter environment.");
+  //   Serial.println("Commission it to your Matter hub with the manual pairing code or QR code");
+  //   Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
+  //   Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+  //   // waits for Matter Window Covering Commissioning.
+  //   uint32_t timeCount = 0;
+  //   while (!Matter.isDeviceCommissioned()) { // Don't use while loop like this
+  //     delay(100);
+  //     if ((timeCount++ % 50) == 0) {  // 50*100ms = 5 sec
+  //       Serial.println("Matter Node not commissioned yet. Waiting for commissioning.");
+  //     }
+  //   }
+
+  //   Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
+  //   // Update visualization based on initial state
+
+  //   Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
+
+  //   delay(2000)
+  // }
 }
