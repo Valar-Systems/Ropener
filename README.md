@@ -1,7 +1,10 @@
 ## Kits
-You can purchase a hardware kit [here](https://valarsystems.com/products/morningrope). If it's sold out, **PLEASE** sign up to the waitlist. It's the only indication we have to make more. If you don't, then we'll **NEVER** make more. 
+You can purchase a hardware kit [here](https://valarsystems.com/products/morningrope). If it's sold out, **PLEASE** sign up to the waitlist. It's the only indication we have to make more. If you don't, then we'll **NEVER** make more.
 
 Without the kit, it's a pain to source all the parts, and costs a lot more because you'll be forced to buy 100 screws (when you only need 2) and 100ft of rope (when you only need 30ft) at a time.
+
+![kit photo](/media/ropener_kit.jpg)
+
 
 ## New Book!!
 I've written a short book to teach you how to program this Trinamic stepper motor from scratch. It can be found [here](https://valarsystems.com/products/controlling-trinamic-drivers-pdf)
