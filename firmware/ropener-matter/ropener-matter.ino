@@ -1,5 +1,7 @@
 // Requires esp32 v3.3.5
 
+// Partition: Huge APP
+
 /* CONSIDERATIONS
 *
 * The ESP32-C3 only has 400KB of SRAM.
@@ -22,10 +24,6 @@
 
 // Matter Manager
 #include <Matter.h>
-// #if !CONFIG_ENABLE_CHIPOBLE
-// // if the device can be commissioned using BLE, WiFi is not used - save flash space
-// #include <WiFi.h>
-// #endif
 #include <Preferences.h>
 #include <Button.h>
 
@@ -34,8 +32,6 @@
 MatterWindowCovering WindowBlinds;
 
 #include "motor_control.h"
-
-// #include <ArduinoOTA.h>  // Disabled to save memory during commissioning
 
 // ========================================
 // LOCAL STATE VARIABLES
@@ -80,12 +76,6 @@ void initialize_motor_system() {
   #endif
 }
 
-
-// Button callbacks
-
-// Button1 = Top left button
-// Button2 = Top Right button
-// Button3 = Bottom button
 
 // Stop movement, if moving, when button down is pressed
 static void btn1PressDownCb(void *button_handle, void *usr_data) {
@@ -164,13 +154,9 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
     return;
   }
 
-  // Create function for this?
-  // Set velocity full
-  //
-
   is_closing = true;
   set_distance = true;
-  // create function for this?
+
   enable_driver();
   driver.VACTUAL(CLOSE_VELOCITY);
   is_moving = true;
@@ -286,7 +272,6 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
   }
 }
 
-
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
   #ifdef LOGGING_ENABLED
     Serial.println("Button2 double click");
@@ -299,11 +284,6 @@ static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
     #endif
     return;
   }
-
-  // Move the motor until pressed to stop. Will override position
-
-  // Pass bool to fulOpen to avoid
-  // fullOpen(false);
 
   is_closing = false;
   set_distance = true;
@@ -371,7 +351,6 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
 }
 
 
-
 void setup() {
 
   #ifdef LOGGING_ENABLED
@@ -404,28 +383,14 @@ void setup() {
 
   load_preferences();
 
-  // motor_position = preferences.getInt("motor_pos", 0);  // Loads saved motor position
+  // Need to convert steps into CM. Send this value to Matter. Will allow user to set distance, ex. "Hey Siri, open curtains 6 inches"
 
   // travel_distance = 20;  // Inches. Change this value to change the distance to openS
-
   // // 200 steps per revolution
-
   // int revolutions = travel_distance / circumference_in;  // How many times the motor need to spin to reach 20 inches
   // int steps_per_revolution = 200;
   // maximum_motor_position = revolutions * steps_per_revolution;  //
   // uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
-
-  // DEFERRED MOTOR INITIALIZATION - Motors will be initialized after first successful commissioning
-  // This prevents motor initialization from interfering with Matter commissioning
-  // setup_motors();
-  // xTaskCreate(position_watcher_task, "position_watcher_task", 4192, NULL, 1, &position_watcher_task_handler);
-
-  // #ifdef LOGGING_ENABLED
-  //   Serial.println("Check 1");                                  // Print the free heap memory in bytes
-  //   Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
-  //   UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
-  //   Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
-  // #endif
 
   // Initialize Matter EndPoint
   // default lift percentage is 100% (fully closed) if not stored before
@@ -483,9 +448,8 @@ void setup() {
     #endif
 
     // Device is already commissioned, initialize motors immediately
-    //Serial.println("initialize_motor_system()");
-    // delay(30000);
-    // Serial.println("initialize_motor_system() 2-2");
+    Serial.println("initialize_motor_system() 2-1");
+    delay(20000); // Delay required for Matter to connect before initializing motor system. Otherwise low SRAM causes crash
     initialize_motor_system();
   }
   else {
@@ -498,48 +462,20 @@ void setup() {
   }
 }
 
-
 unsigned long previousMillis = 0;
-const long interval = 3000;  // 3 second
-
-unsigned long previousMillis2 = 0;
-const long interval2 = 10000;  // 2 second
+const long interval = 5000;  // 3 second
 
 void loop() {
-  //ArduinoOTA.handle();  // Handles a code update request
-
-  // Motor initialization is now handled automatically via:
-  // 1. setup() - if device is already commissioned
-  // 2. WindowBlinds.onChange() callback - when device first connects after commissioning
-  // No polling needed!
 
   // Keeps the down button from triggering single click on release
   if (millis() >= pressdown_timer) {
     pressdown = true;
   }
 
-  // #ifdef LOGGING_ENABLED
-  //   unsigned long currentMillis = millis();
-  //   if (currentMillis - previousMillis >= interval) {
-  //     previousMillis = currentMillis;                             // Save the time of the last event
-  //     Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
-  //     UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
-  //     Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
-  //   }
-  // #endif
-
-
-
-
-  // Serial.print("is_moving: ");
-  // Serial.println(is_moving);
-  // delay(100);
-
-
   #ifdef LOGGING_ENABLED
-    unsigned long currentMillis2 = millis();
-    if (currentMillis2 - previousMillis2 >= interval2) {
-      previousMillis2 = currentMillis2;  // Save the time of the last event
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;  // Save the time of the last event
 
       if (!Matter.isDeviceCommissioned()) {
         Serial.println("Matter Node is not commissioned yet.");
@@ -551,33 +487,11 @@ void loop() {
         Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
         if (!motor_initialized && Matter.isDeviceCommissioned())
         { 
+          Serial.println("initialize_motor_system() 3-1");
           delay(30000);
           initialize_motor_system();
         }
       }
     }
   #endif
-
-  // Check Matter Window Covering Commissioning state, which may change during execution of loop()
-
-  //   Serial.println("Initiate the device discovery in your Matter environment.");
-  //   Serial.println("Commission it to your Matter hub with the manual pairing code or QR code");
-  //   Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-  //   Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
-  //   // waits for Matter Window Covering Commissioning.
-  //   uint32_t timeCount = 0;
-  //   while (!Matter.isDeviceCommissioned()) { // Don't use while loop like this
-  //     delay(100);
-  //     if ((timeCount++ % 50) == 0) {  // 50*100ms = 5 sec
-  //       Serial.println("Matter Node not commissioned yet. Waiting for commissioning.");
-  //     }
-  //   }
-
-  //   Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
-  //   // Update visualization based on initial state
-
-  //   Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
-
-  //   delay(2000)
-  // }
 }
