@@ -1,36 +1,54 @@
-uint16_t positionLabel;
+// ========================================
+// MOTOR CONTROL HEADER
+// ========================================
 
 #include <TMCStepper.h>
 
-//#include "soc/timer_group_struct.h"
-//#include "soc/timer_group_reg.h"
+// ========================================
+// HARDWARE PIN DEFINITIONS
+// ========================================
 
-#define ENABLE_PIN 8
-#define RX_PIN 5
-#define TX_PIN 6
-#define STALLGUARD_PIN 1
-#define INDEX_PIN 0
+// TMC2209 Motor Driver Pins
+#define ENABLE_PIN 8                       // Motor driver enable pin (LOW = enabled)
+#define RX_PIN 5                           // UART RX for TMC2209 communication
+#define TX_PIN 6                           // UART TX for TMC2209 communication
+#define STALLGUARD_PIN 1                   // StallGuard interrupt pin
+#define INDEX_PIN 0                        // Index/step pulse interrupt pin
 
-#define BUTTON_1_PIN GPIO_NUM_4
-#define BUTTON_2_PIN GPIO_NUM_3
-#define WIFI_RESET_PIN GPIO_NUM_7
+// Button Pins
+#define BUTTON_1_PIN GPIO_NUM_4            // Button 1 (Close control)
+#define BUTTON_2_PIN GPIO_NUM_3            // Button 2 (Open control)
+#define WIFI_RESET_PIN GPIO_NUM_7          // Button 3 (Direction/Decommission)
 
-#define DRIVER_ADDRESS 0b00  // TMC2209 Driver address according to MS1 and MS2
-#define R_SENSE 0.11f        // R_SENSE for current calc.
+// ========================================
+// TMC2209 DRIVER CONFIGURATION
+// ========================================
 
-#define OPEN_VELOCITY 600
-#define CLOSE_VELOCITY -600
-#define STOP_MOTOR_VELOCITY 0
+#define DRIVER_ADDRESS 0b00                // TMC2209 address (MS1=0, MS2=0)
+#define R_SENSE 0.11f                      // Current sense resistor value
 
-// function prototypes
+// Motor velocity constants (steps/second)
+#define OPEN_VELOCITY 600                  // Velocity for opening movement
+#define CLOSE_VELOCITY -600                // Velocity for closing movement (negative)
+#define STOP_MOTOR_VELOCITY 0              // Velocity to stop motor
+
+// ========================================
+// FUNCTION PROTOTYPES
+// ========================================
+
 void move_close(void);
 void move_open(void);
-void move_open(void);
 void stop(void);
-
 void position_watcher_task(void *parameter);
+
+// ========================================
+// GLOBAL OBJECTS
+// ========================================
+
+// FreeRTOS task handle for position monitoring
 TaskHandle_t position_watcher_task_handler = NULL;
 
+// TMC2209 stepper driver instance
 TMC2209Stepper driver(&Serial1, R_SENSE, DRIVER_ADDRESS);
 
 void IRAM_ATTR stall_interrupt() {
@@ -69,153 +87,50 @@ void disable_driver() {
   digitalWrite(ENABLE_PIN, 1);
 }
 
-// void setCloseCall() {
-//   Serial.println("Button Pressed");
-//   motor_position = 0;
-//   percent_open = 0;
-//   Serial.print("set close position: ");
-//   Serial.println(target_percent);
-// }
-
-
-/*
-// Function that commands motor to move to position 
-void move_to_percent100ths(uint16_t percent100ths) {
-  printf("move_to_percent100ths(): %i\n", percent100ths);
-
-  switch (percent100ths) {
-    case 0:
-      target_position = 0;
-      break;
-    case 100:
-      target_position = maximum_motor_position;
-      break;
-    default:
-      target_position = (percent100ths / 100.0) * maximum_motor_position;
-      break;
-  }
-
-  //printf("target_position(): %i\n", target_position);
-  //printf("motor_position(): %i\n", motor_position);
-  //printf("maximum_motor_position(): %i\n", maximum_motor_position);
-
-  if (target_position == motor_position) {
-    printf("Not moving the window because it is already at the desired position\n");
-    printf("target_position: %li\n", target_position);
-    printf("motor_position: %li\n", motor_position);
-    return;
-  } else if (target_position > motor_position || percent100ths == 100) {
-    move_close();
-  } else if (target_position < motor_position || percent100ths == 0) {
-    move_open();
-  }
-}
-
-
-
-void move_close() {
-  printf("move_close()\n");
-
-  if (motor_position < 0) {
-    motor_position = 0;
-  }
-
-  // printf("motor_position close: %lu\n", motor_position);    // TESTING
-  // printf("target_position close: %lu\n", target_position);  // TESTING
-
-  // printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
-  // printf("target_percent close: %lu\n", target_percent);  // TESTING
-
-  stop_flag = false;
-  is_closing = true;
-  is_moving = true;
-
-  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
-
-  enable_driver();
-  // Add for loop for acceleration
-  driver.VACTUAL(CLOSE_VELOCITY);
-}
-
-
-
-
-
-void move_open() {
-  printf("move_open()\n");
-
-  if (motor_position < 0) {
-    motor_position = maximum_motor_position;
-  }
-
-  printf("motor_position close: %lu\n", motor_position);    // TESTING
-  printf("target_position close: %lu\n", target_position);  // TESTING
-
-  printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
-  printf("target_percent close: %lu\n", target_percent);              // TESTING
-
-  stop_flag = false;
-  is_closing = false;
-  is_moving = true;
-
-  xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
-
-  enable_driver();
-  // Add for loop for acceleration
-  driver.VACTUAL(OPEN_VELOCITY);
-}
-
-
-*/
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ========================================
+// WINDOW COVERING CALLBACKS
+// ========================================
 
 
 
 
 // Window Covering Callbacks
 bool fullOpen() {
+  // Safety check: Don't operate motors if not initialized
+  if (!motor_initialized) {
+    #ifdef LOGGING_ENABLED
+      Serial.println("fullOpen() called but motors not initialized yet. Ignoring.");
+    #endif
+    return false;
+  }
+
   target_position = maximum_motor_position;
   printf("fullOpen: %lu\n", target_position);
 
-
-
-
+  // Clamp motor position to valid range
   if (motor_position > maximum_motor_position) {
     motor_position = maximum_motor_position;
   }
-
   if (motor_position < 0) {
     motor_position = 0;
   }
-  // This is where you would trigger your motor to go to full open state
 
-  // uint16_t openLimit = WindowBlinds.getInstalledOpenLimitLift();
-  // currentLift = openLimit;
-  // currentLiftPercent = 100;
-  // Serial.printf("Opening window covering to full open (position: %d cm)\r\n", currentLift);
-
-  // if (motor_position < 0) {
-  //   motor_position = 0;
-  // }
-
-  printf("target_position open: %lu\n", target_position);            // TESTING
-  printf("motor_position open: %lu\n", motor_position);              // TESTING
-  printf("max_motor_position open: %lu\n", maximum_motor_position);  // TESTING
-  //printf("percent_open close: %lu\n", percent_open);                  // TESTING
+  #ifdef LOGGING_ENABLED
+    printf("target_position open: %lu\n", target_position);
+    printf("motor_position open: %lu\n", motor_position);
+    printf("max_motor_position open: %lu\n", maximum_motor_position);
+  #endif
 
   stop_flag = false;
   is_closing = false;
   is_moving = true;
 
   if (target_position == motor_position) {
-    Serial.println("target_position == motor_position");
+    #ifdef LOGGING_ENABLED
+      Serial.println("target_position == motor_position");
+    #endif
   } else {
-
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);  // Set operational status to OPEN
-
-    //xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
     vTaskResume(position_watcher_task_handler);
     enable_driver();
     driver.VACTUAL(OPEN_VELOCITY);
@@ -225,45 +140,41 @@ bool fullOpen() {
 }
 
 bool fullClose() {
-  // This is where you would trigger your motor to go to full close state
+  // Safety check: Don't operate motors if not initialized
+  if (!motor_initialized) {
+    #ifdef LOGGING_ENABLED
+      Serial.println("fullClose() called but motors not initialized yet. Ignoring.");
+    #endif
+    return false;
+  }
+
   target_position = 0;
-  printf("fullOpen: %lu\n", target_position);
+  printf("fullClose: %lu\n", target_position);
 
-
-
+  // Clamp motor position to valid range
   if (motor_position > maximum_motor_position) {
     motor_position = maximum_motor_position;
   }
-
   if (motor_position < 0) {
     motor_position = 0;
   }
 
-  // uint16_t closedLimit = WindowBlinds.getInstalledClosedLimitLift();
-  // currentLift = closedLimit;
-  // currentLiftPercent = 0;
-  // Serial.printf("Closing window covering to full close (position: %d cm)\r\n", currentLift);
-
-  // if (motor_position > maximum_motor_position) {
-  //   motor_position = maximum_motor_position;
-  // }
-
-  printf("target_position close: %lu\n", target_position);            // TESTING
-  printf("motor_position close: %lu\n", motor_position);              // TESTING
-  printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
-  //printf("percent_open close: %lu\n", percent_open);                  // TESTING
+  #ifdef LOGGING_ENABLED
+    printf("target_position close: %lu\n", target_position);
+    printf("motor_position close: %lu\n", motor_position);
+    printf("max_motor_position close: %lu\n", maximum_motor_position);
+  #endif
 
   stop_flag = false;
   is_closing = true;
   is_moving = true;
 
   if (target_position == motor_position) {
-    Serial.println("target_position == motor_position");
+    #ifdef LOGGING_ENABLED
+      Serial.println("target_position == motor_position");
+    #endif
   } else {
-
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);  // Set operational status to CLOSE
-
-    //xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
     vTaskResume(position_watcher_task_handler);
     enable_driver();
     driver.VACTUAL(CLOSE_VELOCITY);
@@ -273,124 +184,92 @@ bool fullClose() {
 }
 
 bool goToLiftPercentage(uint8_t liftPercent) {
-  printf("goToLiftPercentage: %lu\n", liftPercent);  // TESTING
+  // Safety check: Don't operate motors if not initialized
+  if (!motor_initialized) {
+    #ifdef LOGGING_ENABLED
+      Serial.println("goToLiftPercentage() called but motors not initialized yet. Ignoring.");
+    #endif
+    return false;
+  }
 
+  printf("goToLiftPercentage: %lu\n", liftPercent);
+
+  // Stop current movement if in progress
   if (is_moving) {
     stop_flag = true;
     delay(1000);
-  };
-  // 100 = closed
-  // 0 = open
-  //delay(2000);
+  }
 
-  // maximum_motor_position = 400;                                                   // TESTING
-  // motor_position = (float)maximum_motor_position * ((float)liftPercent / 100.0);  // TESTING
-  // printf("motor_position 1: %lu\n", motor_position);                              // TESTING
-
-  // int currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100.0;
-
-  // printf("currentLiftPercent 1: %lu\n", currentLiftPercent);  // TESTING
-
-  // currentLiftPercent = 100 - currentLiftPercent;              // Sets inverse
-  // printf("currentLiftPercent 2: %lu\n", currentLiftPercent);  // TESTING
-
-  // // printf("target_position FINISHED: %lu\n", target_position);            // TESTING
-  // //printf("motor_position FINISHED: %lu\n", motor_position);              // TESTING
-  // //printf("max_motor_position FINISHED: %lu\n", maximum_motor_position);  // TESTING
-
-  // // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
-  // WindowBlinds.setLiftPercentage(currentLiftPercent);
-
-
-  // return true;
-
-
-  // // update Lift operational state
-  // if (liftPercent > currentLiftPercent) {
-  //   // Set operational status to OPEN
-  //   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
-  // }
-  // if (liftPercent < currentLiftPercent) {
-  //   // Set operational status to CLOSE
-  //   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
-  // }
-
+  // Calculate target position from percentage
   target_position = (liftPercent / 100.0) * maximum_motor_position;
 
-
+  // Clamp motor position to valid range
   if (motor_position > maximum_motor_position) {
     motor_position = maximum_motor_position;
   }
-
   if (motor_position < 0) {
     motor_position = 0;
   }
 
-  printf("target_position close: %lu\n", target_position);            // TESTING
-  printf("motor_position close: %lu\n", motor_position);              // TESTING
-  printf("max_motor_position close: %lu\n", maximum_motor_position);  // TESTING
-
-  //return true; // TESTING
+  #ifdef LOGGING_ENABLED
+    printf("target_position: %lu\n", target_position);
+    printf("motor_position: %lu\n", motor_position);
+    printf("max_motor_position: %lu\n", maximum_motor_position);
+  #endif
 
 
   if (target_position == motor_position) {
     printf("Not moving the window because it is already at the desired position\n");
     return true;
   } else if (target_position < motor_position) {
-    Serial.println(" goToLiftPercentage CLOSING");
+    #ifdef LOGGING_ENABLED
+      Serial.println(" goToLiftPercentage CLOSING");
+    #endif
 
     stop_flag = false;
     is_closing = true;
     is_moving = true;
 
-    //xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler); // Doesn't
     vTaskResume(position_watcher_task_handler);
     delay(100);
     enable_driver();
     driver.VACTUAL(CLOSE_VELOCITY);
 
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);  // Set operational status to CLOSE
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
 
   } else if (target_position > motor_position) {
-    Serial.println("goToLiftPercentage OPENING");
+    #ifdef LOGGING_ENABLED
+      Serial.println("goToLiftPercentage OPENING");
+    #endif
 
     stop_flag = false;
     is_closing = false;
     is_moving = true;
 
-    //xTaskCreate(position_watcher_task, "position_watcher_task", 4096, NULL, 1, &position_watcher_task_handler);
     vTaskResume(position_watcher_task_handler);
     delay(100);
     enable_driver();
     driver.VACTUAL(OPEN_VELOCITY);
 
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);  // Set operational status to CLOSE
-  } else {
-    Serial.println("ERROR");
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
   }
-
-
-  // This is where you would trigger your motor to go towards liftPercent
-  // For simulation, we update instantly
-  // Calculate absolute position based on installed limits
-  // uint16_t openLimit = WindowBlinds.getInstalledOpenLimitLift(); // 100
-  // uint16_t closedLimit = WindowBlinds.getInstalledClosedLimitLift(); // 0
-
-  // // Linear interpolation: 0% = openLimit, 100% = closedLimit
-  // if (openLimit < closedLimit) {
-  //   currentLift = openLimit + ((closedLimit - openLimit) * liftPercent) / 100;
-  // } else {
-  //   currentLift = openLimit - ((openLimit - closedLimit) * liftPercent) / 100;
-  // }
-  // currentLiftPercent = liftPercent;
-  // Serial.printf("Moving lift to %d%% (position: %d cm)\r\n", currentLiftPercent, currentLift);
 
   return true;
 }
 
 bool stopMotor() {
+  // Safety check: Don't operate motors if not initialized
+  if (!motor_initialized) {
+    #ifdef LOGGING_ENABLED
+      Serial.println("stopMotor() called but motors not initialized yet. Ignoring.");
+    #endif
+    return false;
+  }
+
   // Motor can be stopped while moving cover toward current target
-  Serial.println("Stopping window covering motor");
+  #ifdef LOGGING_ENABLED
+    Serial.println("Stopping window covering motor");
+  #endif
   stop_flag = true;
   return true;
 }
@@ -398,125 +277,140 @@ bool stopMotor() {
 /* Stops motor */
 void stop() {
   disable_driver();
-  printf("stop(): disable_driver\n");
   driver.VACTUAL(STOP_MOTOR_VELOCITY);
-  printf("stop(): driver.VACTUAL(STOP_MOTOR_VELOCITY)\n");
+  #ifdef LOGGING_ENABLED
+    printf("stop(): Motor stopped\n");
+  #endif
 }
 
+// ========================================
+// POSITION WATCHER TASK
+// ========================================
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// User return statement?
+/**
+ * @brief FreeRTOS task that monitors motor position and stops at target
+ *
+ * This task runs continuously, suspended when not needed. It monitors the motor
+ * position and stops movement when target is reached or stop conditions occur.
+ */
 void position_watcher_task(void *parameter) {
+  #ifdef LOGGING_ENABLED
+    Serial.println("position_watcher_task CREATED");
+  #endif
 
-  Serial.println("position_watcher_task CREATED");
-  int loop1 = 0;
+  int loop_counter = 0;
 
 
   while (true) {
     vTaskSuspend(NULL);
 
-    Serial.print("is_moving: ");
-    Serial.println(is_moving);
+    #ifdef LOGGING_ENABLED
+      Serial.print("is_moving: ");
+      Serial.println(is_moving);
+    #endif
 
     while (is_moving) {
+      loop_counter++;
 
-      //Serial.println(motor_position);
-      loop1++;
-
-      // check if button was pressed
+      // Check if stop button was pressed
       if (stop_flag) {
         stop();
         stop_flag = false;
-        printf("position_watcher: button pressed stop == true\n");
+        #ifdef LOGGING_ENABLED
+          printf("position_watcher: Stop requested\n");
+        #endif
         delay(1000);
         goto notify_and_suspend;
       }
 
-      // Check for stall flag //
+      // Check for stall condition
       if (stall_flag) {
         stop();
         stall_flag = false;
-        printf("position_watcher: stall_flag == true\n");
+        #ifdef LOGGING_ENABLED
+          printf("position_watcher: Stall detected\n");
+        #endif
         goto notify_and_suspend;
       }
 
-      // /* Check if Position reached */
+      // Check if target position reached
       if (is_closing) {
         if (motor_position <= target_position) {
-          //printf("position_watcher STOPPING because target_position: %u >= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
-          printf("position_watcher STOPPING because motor_position: %u <= target_position: %u\n", (unsigned int)motor_position, (unsigned int)target_position);
+          #ifdef LOGGING_ENABLED
+            printf("position_watcher: Target reached (closing) - pos: %u, target: %u\n",
+                   (unsigned int)motor_position, (unsigned int)target_position);
+          #endif
           stop();
           goto notify_and_suspend;
         }
       } else {
-        //Serial.println("OPENING");
         if (motor_position >= target_position) {
-          //printf("position_watcher_task STOPPING because target_position: %u <= motor_position: %u\n", (unsigned int)target_position, (unsigned int)motor_position);
-          printf("position_watcher_task STOPPING because motor_position: %u >= target_position: %u\n", (unsigned int)motor_position, (unsigned int)target_position);
-
+          #ifdef LOGGING_ENABLED
+            printf("position_watcher: Target reached (opening) - pos: %u, target: %u\n",
+                   (unsigned int)motor_position, (unsigned int)target_position);
+          #endif
           stop();
           goto notify_and_suspend;
         }
       }
 
-      // Update position in Matter every once is a while
-      if (loop1 >= 20) {
-        // currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
-        // WindowBlinds.setLiftPercentage(currentLiftPercent);
-        Serial.println(motor_position);
-        loop1 = 0;
+      // Periodic position logging
+      if (loop_counter >= 20) {
+        #ifdef LOGGING_ENABLED
+          Serial.println(motor_position);
+        #endif
+        loop_counter = 0;
       }
 
       delay(20);
     }
 
 notify_and_suspend:
-    Serial.println("NOTIFY AND SUSPEND");
+    #ifdef LOGGING_ENABLED
+      Serial.println("Movement complete - updating state");
+    #endif
     is_moving = false;
 
-    int currentLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100.0;
+    // Calculate current lift percentage (inverted for Matter standard: 0% = open, 100% = closed)
+    int currentLiftPercent = 100 - (((float)motor_position / (float)maximum_motor_position) * 100.0);
 
-    printf("currentLiftPercent 1: %lu\n", currentLiftPercent);  // TESTING
+    #ifdef LOGGING_ENABLED
+      printf("Final state - Position: %lu, Lift%%: %lu, Target: %lu, Max: %lu\n",
+             motor_position, currentLiftPercent, target_position, maximum_motor_position);
+    #endif
 
-    currentLiftPercent = 100 - currentLiftPercent;              // Sets inverse to match Matter standard.
-    printf("currentLiftPercent 2: %lu\n", currentLiftPercent);  // TESTING
-
-    printf("target_position FINISHED: %lu\n", target_position);            // TESTING
-    printf("motor_position FINISHED: %lu\n", motor_position);              // TESTING
-    printf("max_motor_position FINISHED: %lu\n", maximum_motor_position);  // TESTING
-
-    // Update CurrentPosition to reflect actual position (setLiftPercentage now only updates CurrentPosition)
-    WindowBlinds.setLiftPercentage(currentLiftPercent);  //
-
-    // Set operational status to STALL when movement is complete
+    // Update Matter state
+    WindowBlinds.setLiftPercentage(currentLiftPercent);
     WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
-    // Store state
-    preferences.putUChar(liftPercentPrefKey, currentLiftPercent);
-    preferences.putInt("motor_pos", motor_position);
-
-    //vTaskDelete(NULL);
-    //vTaskSuspend(NULL);
+    // Save state to preferences
+    preferences.putUChar(PREF_LIFT_PERCENT, currentLiftPercent);
+    preferences.putInt(PREF_MOTOR_POS, motor_position);
   }
 }
 
-// put your setup code here, to run once:
-void setup_motors() {
+// ========================================
+// MOTOR SETUP FUNCTION
+// ========================================
 
+/**
+ * @brief Initialize TMC2209 motor driver and configure all parameters
+ *
+ * Sets up GPIO pins, interrupts, and configures the TMC2209 driver with
+ * optimized settings for StealthChop operation.
+ */
+void setup_motors() {
+  // Configure GPIO pins
   pinMode(ENABLE_PIN, OUTPUT);
   pinMode(STALLGUARD_PIN, INPUT);
   pinMode(INDEX_PIN, INPUT);
 
+  // Attach interrupt handlers
   attachInterrupt(STALLGUARD_PIN, stall_interrupt, RISING);
   attachInterrupt(INDEX_PIN, index_interrupt, RISING);
 
-
-  if (opening_direction == 1) {
-    driver.shaft(true);
-  } else {
-    driver.shaft(false);
-  }
+  // Set motor shaft direction
+  driver.shaft(opening_direction == 1);
 
   /* General Registers */
   driver.I_scale_analog(false);
@@ -543,24 +437,15 @@ void setup_motors() {
 
   driver.irun(20);  // Max current
 
-  driver.TCOOLTHRS(80);  // 20 to turn off coolstep to test vibrations//600 ok//
+  driver.TCOOLTHRS(80);
 
-  // Stallguard or CoolStep NOT currently supported. Coming soon
-
-  driver.SGTHRS(120);  //
-  // Once SGTHRS has been determined, use 1/16*SGTHRS+1
-  // as a starting point for SEMIN.
-
-  // Working values
-  // SGTHRS = 100 / semin = 5 // not great, sometimes skips
-  // 120/6 working great
-
-  driver.semin(6);  // 6 is great. 5 causes skipped steps. Sometimes 6, always 7 causes current to remain high.
-  driver.seup(0);   // 0 works great
-
-  driver.semax(0);  // 0-15 // 0 to 2 recommended
-  driver.sedn(0);
-  driver.seimin(1);
+  // StallGuard and CoolStep configuration
+  driver.SGTHRS(120);  // StallGuard threshold (120 works well with semin=6)
+  driver.semin(6);     // CoolStep minimum current (6 optimal - prevents skipped steps)
+  driver.seup(0);      // Current increment steps
+  driver.semax(0);     // Maximum current (0-2 recommended)
+  driver.sedn(0);      // Current decrement steps
+  driver.seimin(1);    // Minimum current flag
 
   // CHOPCONF – Chopper Configuration
   driver.diss2vs(0);
@@ -568,20 +453,20 @@ void setup_motors() {
   driver.dedge(0);
   driver.intpol(1);
 
-  driver.mres(8);  // 8 = FULLSTEP mode. 200 pulses per revolution.
-  driver.vsense(0);
-  driver.tbl(2);
-  driver.hend(0);
-  driver.hstrt(4);
-  driver.toff(5);
+  driver.mres(8);      // Microstep resolution: 8 = FULLSTEP (200 pulses/revolution)
+  driver.vsense(0);    // Voltage sense
+  driver.tbl(2);       // Blank time
+  driver.hend(0);      // Hysteresis end
+  driver.hstrt(4);     // Hysteresis start
+  driver.toff(5);      // Off time
 
   // PWMCONF – Voltage PWM Mode StealthChop
-  driver.pwm_lim(12);
-  driver.pwm_reg(8);    // Try 2
-  driver.freewheel(1);  // 1= Freewheel mode. 3 = Coil Short HS. Only short the coil when motor is NOT moving. Use for physical security
-  driver.pwm_autograd(1);
-  driver.pwm_autoscale(1);
-  driver.pwm_freq(1);
-  driver.pwm_grad(PWM_grad);  // Test different initial values. Use scope.
-  driver.pwm_ofs(36);
+  driver.pwm_lim(12);       // PWM limit
+  driver.pwm_reg(8);        // PWM regulation
+  driver.freewheel(1);      // Freewheel mode (1 = normal, 3 = coil short for security)
+  driver.pwm_autograd(1);   // Automatic gradient adaptation
+  driver.pwm_autoscale(1);  // Automatic amplitude scaling
+  driver.pwm_freq(1);       // PWM frequency
+  driver.pwm_grad(PWM_GRAD); // PWM gradient
+  driver.pwm_ofs(36);       // PWM offset
 }
