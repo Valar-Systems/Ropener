@@ -36,7 +36,7 @@ Preferences matterPref;
 const char *liftPercentPrefKey = "LiftPercent";
 
 // set your board USER BUTTON pin here
-const uint8_t buttonPin = GPIO_NUM_4;  // Set your pin here. Using BOOT Button.
+const uint8_t buttonPin = GPIO_NUM_7;  // Set your pin here. Using BOOT Button.
 
 // Button control
 uint32_t button_time_stamp = 0;                // debouncing control

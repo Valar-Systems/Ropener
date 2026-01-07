@@ -1,5 +1,19 @@
 // Requires esp32 v3.3.5
 
+/* CONSIDERATIONS
+*
+* The ESP32-C3 only has 400KB of SRAM.
+* Usings Matter on Arduino uses a large amount of SRAM when commissioning.
+* The TMCStepper library uses a large amount of SRAM as well.
+* If you load the TMCStepper library before Matter commissioning, it will crash.
+* Therefore, the TMCStepper library is only loaded after successful Matter Commissioning.
+* NOTE: There is a 30 second delay after commissioning before the motors become initialized. This is required, or else the Matter Hub will not connect. 
+*     Even though the ESP32 thinks it's commissioned, the process is not complete on the hub until 20-30 seconds later. The delay is required due to low SRAM
+* Advise using ESP-IDF to avoid this issue as Matter is optimized much better on it.
+*
+*/
+
+
 // ========================================
 // LOGGING CONFIGURATION
 // Comment out to disable serial logging (saves memory)
@@ -351,13 +365,9 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
   //Reset matter
   WindowBlinds.setLiftPercentage(0);  // close the covering
   Matter.decommission();
+  delay(500);
+  ESP.restart(); // Restart to de-initialize the motor
 
-  // Reset motor initialization flag so motors will be re-initialized after re-commissioning
-  motor_initialized = false;
-
-  #ifdef LOGGING_ENABLED
-    Serial.println("Motor system will be re-initialized after next commissioning.");
-  #endif
 }
 
 
@@ -410,12 +420,12 @@ void setup() {
   // setup_motors();
   // xTaskCreate(position_watcher_task, "position_watcher_task", 4192, NULL, 1, &position_watcher_task_handler);
 
-  #ifdef LOGGING_ENABLED
-    Serial.println("Check 1");                                  // Print the free heap memory in bytes
-    Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
-    UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
-    Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
-  #endif
+  // #ifdef LOGGING_ENABLED
+  //   Serial.println("Check 1");                                  // Print the free heap memory in bytes
+  //   Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
+  //   UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
+  //   Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
+  // #endif
 
   // Initialize Matter EndPoint
   // default lift percentage is 100% (fully closed) if not stored before
@@ -455,6 +465,7 @@ void setup() {
     // Auto-initialize motors when device becomes commissioned
     // This callback fires when the device first connects to the Matter network
     if (!motor_initialized && Matter.isDeviceCommissioned()) {
+      Serial.println("initialize_motor_system() 1-1");
       initialize_motor_system();
     }
 
@@ -467,11 +478,14 @@ void setup() {
   // Check if device is already commissioned (e.g., after a restart)
   if (Matter.isDeviceCommissioned()) {
     #ifdef LOGGING_ENABLED
-      Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
+      Serial.println("1: Matter Node is commissioned and connected to the network. Ready for use.");
       Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
     #endif
 
     // Device is already commissioned, initialize motors immediately
+    //Serial.println("initialize_motor_system()");
+    // delay(30000);
+    // Serial.println("initialize_motor_system() 2-2");
     initialize_motor_system();
   }
   else {
@@ -504,15 +518,15 @@ void loop() {
     pressdown = true;
   }
 
-  #ifdef LOGGING_ENABLED
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;                             // Save the time of the last event
-      Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
-      UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
-      Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
-    }
-  #endif
+  // #ifdef LOGGING_ENABLED
+  //   unsigned long currentMillis = millis();
+  //   if (currentMillis - previousMillis >= interval) {
+  //     previousMillis = currentMillis;                             // Save the time of the last event
+  //     Serial.println(ESP.getFreeHeap());                          // Print the free heap memory in bytes
+  //     UBaseType_t freeStack = uxTaskGetStackHighWaterMark(NULL);  // Periodically check and print the stack high water mark (minimum free stack)
+  //     Serial.printf("Loop task high water mark (min free stack): %u bytes\n", freeStack);
+  //   }
+  // #endif
 
 
 
@@ -534,9 +548,10 @@ void loop() {
       }
       else
       {
-        Serial.println("Matter Node is commissioned and connected to the network. Ready for use.");
+        Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
         if (!motor_initialized && Matter.isDeviceCommissioned())
-        {
+        { 
+          delay(30000);
           initialize_motor_system();
         }
       }
