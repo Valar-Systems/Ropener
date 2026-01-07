@@ -488,7 +488,7 @@ void loop() {
         if (!motor_initialized && Matter.isDeviceCommissioned())
         { 
           Serial.println("initialize_motor_system() 3-1");
-          delay(30000);
+          delay(30000); // Delay initializing motor for 30 seconds after Matter device commissioned. For an unknown reason, the Hub takes times to create this device and the delay is required to prevent crash due to low SRAM on ESP32-C3
           initialize_motor_system();
         }
       }
