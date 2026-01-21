@@ -33,13 +33,28 @@ void move_open(void);
 void move_open(void);
 void stop(void);
 
+int btn1Press;
+int btn2Press;
+
 void position_watcher_task(void *parameter);
 TaskHandle_t position_watcher_task_handler = NULL;
 
 TMC2209Stepper driver(&Serial1, R_SENSE, DRIVER_ADDRESS);
 DNSServer dnsServer;
 
+void IRAM_ATTR button1pressed() {
 
+  //move_to_step = 0;
+  //run_motor = true;
+  btn1Press = 1;
+}
+
+void IRAM_ATTR button2pressed() {
+
+  //move_to_step = max_steps;
+  //run_motor = true;
+  btn2Press = 1;
+}
 
 void IRAM_ATTR stall_interrupt() {
   stall_flag = true;
@@ -233,8 +248,15 @@ void setup_motors() {
   pinMode(STALLGUARD_PIN, INPUT);
   pinMode(INDEX_PIN, INPUT);
 
+  pinMode(BUTTON_1_PIN, INPUT);
+  pinMode(BUTTON_2_PIN, INPUT);
+  pinMode(WIFI_RESET_PIN, INPUT);
+
   attachInterrupt(STALLGUARD_PIN, stall_interrupt, RISING);
   attachInterrupt(INDEX_PIN, index_interrupt, RISING);
+
+  attachInterrupt(BUTTON_1_PIN, button1pressed, FALLING);
+  attachInterrupt(BUTTON_2_PIN, button2pressed, FALLING);
 
 
   if (opening_direction == 1) {
@@ -310,6 +332,4 @@ void setup_motors() {
   driver.pwm_freq(1);
   driver.pwm_grad(PWM_grad);  // Test different initial values. Use scope.
   driver.pwm_ofs(36);
-
-
 }

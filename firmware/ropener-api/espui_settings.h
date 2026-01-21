@@ -169,7 +169,7 @@ void ESPUIsetup() {
   ESPUI.addControl(ControlType::Separator, "Home Position", "", ControlColor::Peterriver, tab2);
   //Button: Set Zero
   ESPUI.addControl(ControlType::Switcher, "Change Direction", String(opening_direction), ControlColor::Dark, tab2, &switchChangeDirectionCall);
-  ESPUI.addControl(ControlType::ButtonESPUI, "Set Close Position", "Set", ControlColor::Dark, tab2, &buttonSetCloseCall);
+  ESPUI.addControl(ControlType::Button, "Set Close Position", "Set", ControlColor::Dark, tab2, &buttonSetCloseCall);
   ESPUI.addControl(ControlType::Separator, "Motor Setting", "", ControlColor::Peterriver, tab2);
 
   Serial.println("travel_distance: ");
@@ -192,7 +192,7 @@ void ESPUIsetup() {
   ESPUI.addControl(ControlType::Separator, "Set Wifi", "", ControlColor::None, tab3);
   wifi_ssid_text = ESPUI.addControl(ControlType::Text, "Network", String(ssid), ControlColor::Emerald, tab3, &textNetworkCall);        //Text: Network
   wifi_pass_text = ESPUI.addControl(ControlType::Text, "Password", String(password), ControlColor::Emerald, tab3, &textPasswordCall);  //Text: Password
-  ESPUI.addControl(ControlType::ButtonESPUI, "Save Settings", "SAVE", ControlColor::Emerald, tab3, &buttonSaveNetworkCall);                 //Button: Save
+  ESPUI.addControl(ControlType::Button, "Save Settings", "SAVE", ControlColor::Emerald, tab3, &buttonSaveNetworkCall);                 //Button: Save
 
 
   //Tab4: API

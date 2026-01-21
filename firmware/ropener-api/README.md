@@ -52,8 +52,6 @@ Install the ESP32 core by following the instructions [here](https://randomnerdtu
 
 Install the following libriaires inside Arduino
 1. [TMC Stepper](https://www.arduino.cc/reference/en/libraries/tmcstepper/)
-2. [FastAccelStepper](https://www.arduino.cc/reference/en/libraries/fastaccelstepper/)
-3. [ezTime](https://www.arduino.cc/reference/en/libraries/eztime/)
 4. [ESPUI](https://github.com/s00500/ESPUI)
 5. [ArduinoJson](https://www.arduino.cc/reference/en/libraries/arduinojson/)
 
