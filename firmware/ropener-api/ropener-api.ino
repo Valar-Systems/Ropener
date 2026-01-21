@@ -1,9 +1,6 @@
-// Libraries required
-
-// ESP32_Button: https://github.com/esp-arduino-libs/ESP32_Button.git
-// ESPUI:
-// TMCStepper:
-
+// Libraries required:
+// ESPUI: 2.2.4
+// TMCStepper: 0.7.3
 
 #include <Arduino.h>
 #include "memory.h"
