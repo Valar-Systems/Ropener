@@ -1,6 +1,10 @@
 // Libraries required:
+// esp32 core by Espressiff Systems: v3.3.5
 // ESPUI: 2.2.4
 // TMCStepper: 0.7.3
+// ESPAsyncWebServer: v3.9.4 https://github.com/ESP32Async/ESPAsyncWebServer
+// AsyncTCP: v3.4.10 https://github.com/ESP32Async/AsyncTCP
+
 
 #include <Arduino.h>
 #include "memory.h"
