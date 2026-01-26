@@ -231,14 +231,17 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
       //Convert distance to centimeters
-      int revolutions;
-      revolutions = motor_position / 200;  // may equal zero
+      float revolutions;
+      revolutions = (float)motor_position / 100;  // 100 pulses per revolution. This gives us the number of revolutions
+      MAX_LIFT = (float)revolutions * 3.7699f;    // The curtain will move 3.7699 cm per revolution
+      WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
 
-      MAX_LIFT = revolutions * 3.7699;  // may equal zero
-      //motor_position / 200 = motor revolutions
-
-      // 3.7699 cm per revolution
-      //WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
+#ifdef LOGGING_ENABLED
+      Serial.println("revolutions: ");
+      Serial.println(revolutions);
+      Serial.println("MAX_LIFT: ");
+      Serial.println(MAX_LIFT);
+#endif
     }
     is_moving = false;  // is this required
   }
