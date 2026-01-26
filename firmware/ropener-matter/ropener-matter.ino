@@ -40,11 +40,11 @@ MatterWindowCovering WindowBlinds;
 #define PRESSDOWN_DELAY 1500
 
 // Button state management (moved from memory.h - only used in this file)
-static bool pressdown = false;             // Press-down state flag
-static uint32_t pressdown_timer = 0;       // Press-down timer
+static bool pressdown = false;        // Press-down state flag
+static uint32_t pressdown_timer = 0;  // Press-down timer
 
 // Distance setting mode flag
-static bool set_distance = false;          // True when setting distance via double-click
+static bool set_distance = false;  // True when setting distance via double-click
 
 // ========================================
 // MOTOR INITIALIZATION HELPER
@@ -61,31 +61,31 @@ void initialize_motor_system() {
     return;  // Already initialized
   }
 
-  #ifdef LOGGING_ENABLED
-    Serial.println("Initializing motor system...");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Initializing motor system...");
+#endif
 
   setup_motors();
   xTaskCreate(position_watcher_task, "position_watcher_task", 4192, NULL, 1, &position_watcher_task_handler);
   motor_initialized = true;
   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
-  #ifdef LOGGING_ENABLED
-    Serial.println("Motor system initialized successfully.");
-    Serial.println("Device is now fully operational.");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Motor system initialized successfully.");
+  Serial.println("Device is now fully operational.");
+#endif
 }
 
 
 // Stop movement, if moving, when button down is pressed
 static void btn1PressDownCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button pressed down");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button pressed down");
+#endif
   if (is_moving) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Stop Flag");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Stop Flag");
+#endif
     stop_flag = true;
 
     pressdown = false;
@@ -103,10 +103,10 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
 
       set_distance = false;
 
-      #ifdef LOGGING_ENABLED
-        Serial.print("Motor position: ");
-        Serial.println(motor_position);
-      #endif
+#ifdef LOGGING_ENABLED
+      Serial.print("Motor position: ");
+      Serial.println(motor_position);
+#endif
     }
     is_moving = false;  // Is this needed?
   }
@@ -114,24 +114,24 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
 
 // Move to full close position
 static void btn1SingleClickCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button1 single click");
-    Serial.print("motor_position: ");
-    Serial.println(motor_position);
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button1 single click");
+  Serial.print("motor_position: ");
+  Serial.println(motor_position);
+#endif
 
   // Safety check: Don't operate motors if not initialized
   if (!motor_initialized) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Motors not initialized yet. Please commission device first.");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Motors not initialized yet. Please commission device first.");
+#endif
     return;
   }
 
   if (pressdown) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("pressdown");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("pressdown");
+#endif
     if (is_moving) {
       stop_flag = true;
     } else {
@@ -142,15 +142,15 @@ static void btn1SingleClickCb(void *button_handle, void *usr_data) {
 
 // Move until stop button is pressed
 static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button1 double click");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button1 double click");
+#endif
 
   // Safety check: Don't operate motors if not initialized
   if (!motor_initialized) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Motors not initialized yet. Please commission device first.");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Motors not initialized yet. Please commission device first.");
+#endif
     return;
   }
 
@@ -164,15 +164,15 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
 
 // Sets zero position
 static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button1 long press click");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button1 long press click");
+#endif
 
   // Safety check: Don't operate motors if not initialized
   if (!motor_initialized) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Motors not initialized yet. Please commission device first.");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Motors not initialized yet. Please commission device first.");
+#endif
     return;
   }
 
@@ -184,22 +184,22 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   delay(100);
   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
-  #ifdef LOGGING_ENABLED
-    Serial.print("Motor position: ");
-    Serial.println(motor_position);
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.print("Motor position: ");
+  Serial.println(motor_position);
+#endif
 }
 
 
 // BUTTON 2
 static void btn2PressDownCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button2 pressed down");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button2 pressed down");
+#endif
   if (is_moving) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Stop Flag");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Stop Flag");
+#endif
     stop_flag = true;
 
     pressdown = false;
@@ -212,20 +212,20 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       maximum_motor_position = motor_position;
       preferences.putInt(PREF_MOTOR_POS, motor_position);
       preferences.putInt(PREF_MAX_MOTOR_POS, motor_position);
-      #ifdef LOGGING_ENABLED
-        Serial.print("Motor position: ");
-        Serial.println(motor_position);
-      #endif
+#ifdef LOGGING_ENABLED
+      Serial.print("Motor position: ");
+      Serial.println(motor_position);
+#endif
 
       set_distance = false;
 
       // pressdown = false;
       // pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
-      #ifdef LOGGING_ENABLED
-        Serial.println("Updating Matter");
-      #endif
-      currentLiftPercent = 0;                              // 0 percent open = 100 percent closed
+#ifdef LOGGING_ENABLED
+      Serial.println("Updating Matter");
+#endif
+      currentLiftPercent = 100;                              // 0 = fullclose // 100 = fullOpen
       WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
       delay(100);
       WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
@@ -246,24 +246,24 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 
 // Move to full Open position
 static void btn2SingleClickCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button2 single click");
-    Serial.print("Motor position: ");
-    Serial.println(motor_position);
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button2 single click");
+  Serial.print("Motor position: ");
+  Serial.println(motor_position);
+#endif
 
   // Safety check: Don't operate motors if not initialized
   if (!motor_initialized) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Motors not initialized yet. Please commission device first.");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Motors not initialized yet. Please commission device first.");
+#endif
     return;
   }
 
   if (pressdown) {  // not working
-    #ifdef LOGGING_ENABLED
-      Serial.println("pressdown");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("pressdown");
+#endif
     if (is_moving) {
       stop_flag = true;
     } else {
@@ -273,51 +273,53 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
 }
 
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button2 double click");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button2 double click");
+#endif
 
   // Safety check: Don't operate motors if not initialized
   if (!motor_initialized) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Motors not initialized yet. Please commission device first.");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Motors not initialized yet. Please commission device first.");
+#endif
     return;
   }
 
   is_closing = false;
   set_distance = true;
+  is_moving = true;
+
+  motor_position = 0;  // Set current motor position to 0
 
   enable_driver();
   driver.VACTUAL(OPEN_VELOCITY);
-  is_moving = true;
 }
 
 
 static void btn2LongPressStartCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button2 long press click");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button2 long press click");
+#endif
 }
 
 
 static void btn3SingleClickCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button3 single click");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button3 single click");
+#endif
 }
 
 // Changes the opening direction of Button1 and Button2
 static void btn3DoubleClickCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button3 double click");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button3 double click");
+#endif
 
   // Safety check: Don't operate motors if not initialized
   if (!motor_initialized) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Motors not initialized yet. Please commission device first.");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("Motors not initialized yet. Please commission device first.");
+#endif
     return;
   }
 
@@ -327,9 +329,9 @@ static void btn3DoubleClickCb(void *button_handle, void *usr_data) {
     preferences.putInt(PREF_OPEN_DIR, opening_direction);
     driver.shaft(true);
   } else {
-    #ifdef LOGGING_ENABLED
-      Serial.print("Inactive");
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.print("Inactive");
+#endif
     opening_direction = 0;
     preferences.putInt(PREF_OPEN_DIR, opening_direction);
     driver.shaft(false);
@@ -337,25 +339,24 @@ static void btn3DoubleClickCb(void *button_handle, void *usr_data) {
 }
 
 static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
-  #ifdef LOGGING_ENABLED
-    Serial.println("Button3 long press click");
-    Serial.println("Decommissioning the Window Covering Matter Accessory. It shall be commissioned again.");
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.println("Button3 long press click");
+  Serial.println("Decommissioning the Window Covering Matter Accessory. It shall be commissioned again.");
+#endif
 
   //Reset matter
   WindowBlinds.setLiftPercentage(0);  // close the covering
   Matter.decommission();
   delay(500);
-  ESP.restart(); // Restart to de-initialize the motor
-
+  ESP.restart();  // Restart to de-initialize the motor
 }
 
 
 void setup() {
 
-  #ifdef LOGGING_ENABLED
-    Serial.begin(115200);
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.begin(115200);
+#endif
 
   Button btn1 = Button(BUTTON_1_PIN, false);    //BUTTON_1_PIN
   Button btn2 = Button(BUTTON_2_PIN, false);    //BUTTON_2_PIN
@@ -406,13 +407,13 @@ void setup() {
   // Set current lift percentage
   currentLiftPercent = lastLiftPercent;
 
-  #ifdef LOGGING_ENABLED
-    Serial.printf(
-      "Window Covering limits configured: Lift [%d-%d cm]\r\n",
-      WindowBlinds.getInstalledOpenLimitLift(),
-      WindowBlinds.getInstalledClosedLimitLift());
-    Serial.printf("Initial lift percentage: %d%%\r\n", currentLiftPercent);
-  #endif
+#ifdef LOGGING_ENABLED
+  Serial.printf(
+    "Window Covering limits configured: Lift [%d-%d cm]\r\n",
+    WindowBlinds.getInstalledOpenLimitLift(),
+    WindowBlinds.getInstalledClosedLimitLift());
+  Serial.printf("Initial lift percentage: %d%%\r\n", currentLiftPercent);
+#endif
 
   // Set callback functions
   WindowBlinds.onOpen(fullOpen);
@@ -423,9 +424,9 @@ void setup() {
   // Generic callback for Lift change
   // This callback also fires when device first connects after commissioning
   WindowBlinds.onChange([](uint8_t liftPercent, uint8_t tiltPercent) {
-    #ifdef LOGGING_ENABLED
-      Serial.printf("Window Covering changed: Lift=%d%%, Tilt=%d%%\r\n", liftPercent, tiltPercent);
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.printf("Window Covering changed: Lift=%d%%, Tilt=%d%%\r\n", liftPercent, tiltPercent);
+#endif
 
     // Auto-initialize motors when device becomes commissioned
     // This callback fires when the device first connects to the Matter network
@@ -442,23 +443,22 @@ void setup() {
 
   // Check if device is already commissioned (e.g., after a restart)
   if (Matter.isDeviceCommissioned()) {
-    #ifdef LOGGING_ENABLED
-      Serial.println("1: Matter Node is commissioned and connected to the network. Ready for use.");
-      Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
-    #endif
+#ifdef LOGGING_ENABLED
+    Serial.println("1: Matter Node is commissioned and connected to the network. Ready for use.");
+    Serial.printf("Initial state: Lift=%d%%\r\n", WindowBlinds.getLiftPercentage());
+#endif
 
     // Device is already commissioned, initialize motors immediately
     Serial.println("initialize_motor_system() 2-1");
-    delay(20000); // Delay required for Matter to connect before initializing motor system. Otherwise low SRAM causes crash
+    delay(20000);  // Delay required for Matter to connect before initializing motor system. Otherwise low SRAM causes crash
     initialize_motor_system();
-  }
-  else {
-    #ifdef LOGGING_ENABLED
-      Serial.println("Matter Node is not commissioned yet.");
-      Serial.println("Motor system will be initialized automatically after commissioning.");
-      Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-      Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
-    #endif
+  } else {
+#ifdef LOGGING_ENABLED
+    Serial.println("Matter Node is not commissioned yet.");
+    Serial.println("Motor system will be initialized automatically after commissioning.");
+    Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
+    Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+#endif
   }
 }
 
@@ -472,26 +472,23 @@ void loop() {
     pressdown = true;
   }
 
-  #ifdef LOGGING_ENABLED
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;  // Save the time of the last event
+#ifdef LOGGING_ENABLED
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;  // Save the time of the last event
 
-      if (!Matter.isDeviceCommissioned()) {
-        Serial.println("Matter Node is not commissioned yet.");
-        //Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-        //Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
-      }
-      else
-      {
-        Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
-        if (!motor_initialized && Matter.isDeviceCommissioned())
-        { 
-          Serial.println("initialize_motor_system() 3-1");
-          delay(30000); // Delay initializing motor for 30 seconds after Matter device commissioned. For an unknown reason, the Hub takes times to create this device and the delay is required to prevent crash due to low SRAM on ESP32-C3
-          initialize_motor_system();
-        }
+    if (!Matter.isDeviceCommissioned()) {
+      Serial.println("Matter Node is not commissioned yet.");
+      //Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
+      //Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+    } else {
+      Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
+      if (!motor_initialized && Matter.isDeviceCommissioned()) {
+        Serial.println("initialize_motor_system() 3-1");
+        delay(30000);  // Delay initializing motor for 30 seconds after Matter device commissioned. For an unknown reason, the Hub takes times to create this device and the delay is required to prevent crash due to low SRAM on ESP32-C3
+        initialize_motor_system();
       }
     }
-  #endif
+  }
+#endif
 }
