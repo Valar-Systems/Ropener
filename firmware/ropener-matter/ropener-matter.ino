@@ -225,7 +225,7 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 #ifdef LOGGING_ENABLED
       Serial.println("Updating Matter");
 #endif
-      currentLiftPercent = 100;                              // 0 = fullclose // 100 = fullOpen
+      currentLiftPercent = 100;                            // 0 = fullclose // 100 = fullOpen
       WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
       delay(100);
       WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
@@ -328,7 +328,7 @@ static void btn3DoubleClickCb(void *button_handle, void *usr_data) {
     opening_direction = 1;
     preferences.putInt(PREF_OPEN_DIR, opening_direction);
     driver.shaft(true);
-  } else {
+  } else if (opening_direction == 1) {
 #ifdef LOGGING_ENABLED
     Serial.print("Inactive");
 #endif
