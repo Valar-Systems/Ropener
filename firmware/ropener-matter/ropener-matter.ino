@@ -234,6 +234,7 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       float revolutions;
       revolutions = (float)motor_position / 100;  // 100 pulses per revolution. This gives us the number of revolutions
       MAX_LIFT = (float)revolutions * 3.7699f;    // The curtain will move 3.7699 cm per revolution
+      preferences.putInt(PREF_MAX_LIFT, MAX_LIFT);
       WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
 
 #ifdef LOGGING_ENABLED
@@ -386,15 +387,6 @@ void setup() {
   preferences.begin("preferencess", false);
 
   load_preferences();
-
-  // Need to convert steps into CM. Send this value to Matter. Will allow user to set distance, ex. "Hey Siri, open curtains 6 inches"
-
-  // travel_distance = 20;  // Inches. Change this value to change the distance to openS
-  // // 200 steps per revolution
-  // int revolutions = travel_distance / circumference_in;  // How many times the motor need to spin to reach 20 inches
-  // int steps_per_revolution = 200;
-  // maximum_motor_position = revolutions * steps_per_revolution;  //
-  // uint8_t lastLiftPercent = ((float)motor_position / (float)maximum_motor_position) * 100;
 
   // Initialize Matter EndPoint
   // default lift percentage is 100% (fully closed) if not stored before

@@ -43,9 +43,10 @@ Preferences preferences;
 #define PREF_MOTOR_POS "motor_pos"
 #define PREF_OPEN_DIR "open_dir"
 #define PREF_TRAVEL_DIST "travel_dist"
+#define PREF_MAX_LIFT "max_lift"
 
 // Window covering limits (physical position in centimeters)
-uint16_t MAX_LIFT = 200;                   // Maximum lift position (fully open) - can be updated
+uint16_t MAX_LIFT;                // Maximum lift position (fully open) - can be updated
 const uint16_t MIN_LIFT = 0;               // Minimum lift position (fully closed)
 
 // Current window covering state
@@ -71,6 +72,8 @@ void load_preferences() {
   maximum_motor_position = preferences.getInt(PREF_MAX_MOTOR_POS, 500);  // Default: 500 steps (~20 inches)
   motor_position = preferences.getInt(PREF_MOTOR_POS, 0);                // Default: 0 (closed position)
   opening_direction = preferences.getInt(PREF_OPEN_DIR, 0);              // Default: 0 (normal direction)
+
+  MAX_LIFT = preferences.getInt(PREF_MAX_LIFT, 200);   
 
   // Calculate current percentage based on loaded position (inverted for Matter standard)
   if (maximum_motor_position > 0) {
