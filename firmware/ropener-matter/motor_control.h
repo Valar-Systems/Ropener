@@ -371,8 +371,8 @@ notify_and_suspend:
     #endif
     is_moving = false;
 
-    // Calculate current lift percentage (inverted for Matter standard: 0% = open, 100% = closed)
-    int currentLiftPercent = 100 - (((float)motor_position / (float)maximum_motor_position) * 100.0);
+    // Calculate current lift percentage (inverted for Matter standard: 0% = closed, 100% = open)
+    int currentLiftPercent =  (((float)motor_position / (float)maximum_motor_position) * 100.0);
 
     #ifdef LOGGING_ENABLED
       printf("Final state - Position: %lu, Lift%%: %lu, Target: %lu, Max: %lu\n",
