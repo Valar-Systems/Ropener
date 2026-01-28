@@ -19,8 +19,9 @@
 // ========================================
 // LOGGING CONFIGURATION
 // Comment out to disable serial logging (saves memory)
+// Will NOT commission in Matter if logging is enabled
 // ========================================
-#define LOGGING_ENABLED
+// #define LOGGING_ENABLED
 
 // Matter Manager
 #include <Matter.h>
@@ -180,7 +181,7 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   preferences.putInt(PREF_MOTOR_POS, motor_position);
 
   currentLiftPercent = 100;            // 0
-  WindowBlinds.setLiftPercentage(99);  // Updates Matter to 100 percent closed position
+  WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 100 percent closed position
   delay(100);
   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
@@ -222,9 +223,6 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       // pressdown = false;
       // pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
-#ifdef LOGGING_ENABLED
-      Serial.println("Updating Matter");
-#endif
       currentLiftPercent = 100;                            // 0 = fullclose // 100 = fullOpen
       WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
       delay(100);
@@ -238,11 +236,13 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
 
 #ifdef LOGGING_ENABLED
+      Serial.println("Updating Matter");
       Serial.println("revolutions: ");
       Serial.println(revolutions);
       Serial.println("MAX_LIFT: ");
       Serial.println(MAX_LIFT);
 #endif
+
     }
     is_moving = false;  // is this required
   }
