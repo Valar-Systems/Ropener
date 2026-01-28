@@ -84,17 +84,20 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
 #endif
   if (is_moving) {
 #ifdef LOGGING_ENABLED
-    Serial.println("Stop Flag");
+    Serial.println("Stop Flag - IMMEDIATE STOP");
 #endif
+    
+    // IMMEDIATELY stop the motor - don't wait for position watcher
+    disable_driver();
+    driver.VACTUAL(STOP_MOTOR_VELOCITY);
+    
     stop_flag = true;
+    is_moving = false;
 
     pressdown = false;
     pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
     if (set_distance) {
-      disable_driver();
-      driver.VACTUAL(STOP_MOTOR_VELOCITY);
-
       motor_position = 0;
       preferences.putInt(PREF_MOTOR_POS, motor_position);
 
@@ -108,7 +111,9 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
       Serial.println(motor_position);
 #endif
     }
-    is_moving = false;  // Is this needed?
+    
+    // Update Matter state immediately
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
   }
 }
 
@@ -128,13 +133,13 @@ static void btn1SingleClickCb(void *button_handle, void *usr_data) {
     return;
   }
 
+  // Only respond to single click if pressdown is true (not during/after a press down stop)
   if (pressdown) {
 #ifdef LOGGING_ENABLED
     Serial.println("pressdown");
 #endif
-    if (is_moving) {
-      stop_flag = true;
-    } else {
+    // Motor is already stopped by pressdown callback, just start the close operation
+    if (!is_moving) {
       fullClose();
     }
   }
@@ -198,17 +203,20 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 #endif
   if (is_moving) {
 #ifdef LOGGING_ENABLED
-    Serial.println("Stop Flag");
+    Serial.println("Stop Flag - IMMEDIATE STOP");
 #endif
+    
+    // IMMEDIATELY stop the motor - don't wait for position watcher
+    disable_driver();
+    driver.VACTUAL(STOP_MOTOR_VELOCITY);
+    
     stop_flag = true;
+    is_moving = false;
 
     pressdown = false;
     pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
     if (set_distance) {
-      disable_driver();
-      driver.VACTUAL(STOP_MOTOR_VELOCITY);
-
       maximum_motor_position = motor_position;
       preferences.putInt(PREF_MOTOR_POS, motor_position);
       preferences.putInt(PREF_MAX_MOTOR_POS, motor_position);
@@ -218,9 +226,6 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 #endif
 
       set_distance = false;
-
-      // pressdown = false;
-      // pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
 #ifdef LOGGING_ENABLED
       Serial.println("Updating Matter");
@@ -243,8 +248,10 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       Serial.println("MAX_LIFT: ");
       Serial.println(MAX_LIFT);
 #endif
+    } else {
+      // If not in set_distance mode, still update Matter state
+      WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
     }
-    is_moving = false;  // is this required
   }
 }
 
@@ -264,13 +271,13 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
     return;
   }
 
-  if (pressdown) {  // not working
+  // Only respond to single click if pressdown is true (not during/after a press down stop)
+  if (pressdown) {
 #ifdef LOGGING_ENABLED
     Serial.println("pressdown");
 #endif
-    if (is_moving) {
-      stop_flag = true;
-    } else {
+    // Motor is already stopped by pressdown callback, just start the open operation
+    if (!is_moving) {
       fullOpen();
     }
   }
