@@ -20,8 +20,9 @@
 // LOGGING CONFIGURATION
 // Comment out to disable serial logging (saves memory)
 // Will NOT commission in Matter if logging is enabled
+// Also set USB CDC on Boot to OFF
 // ========================================
-// #define LOGGING_ENABLED
+//#define LOGGING_ENABLED
 
 // Matter Manager
 #include <Matter.h>
@@ -136,7 +137,7 @@ static void btn1SingleClickCb(void *button_handle, void *usr_data) {
     if (is_moving) {
       stop_flag = true;
     } else {
-      fullClose();
+      goToLiftPercentage(0);
     }
   }
 }
@@ -180,7 +181,7 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   motor_position = 0;
   preferences.putInt(PREF_MOTOR_POS, motor_position);
 
-  currentLiftPercent = 100;            // 0
+  currentLiftPercent = 100;                            // 0
   WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 100 percent closed position
   delay(100);
   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
@@ -242,7 +243,6 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       Serial.println("MAX_LIFT: ");
       Serial.println(MAX_LIFT);
 #endif
-
     }
     is_moving = false;  // is this required
   }
@@ -271,10 +271,11 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
     if (is_moving) {
       stop_flag = true;
     } else {
-      fullOpen();
+      goToLiftPercentage(100);
     }
   }
 }
+
 
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
 #ifdef LOGGING_ENABLED
@@ -411,8 +412,6 @@ void setup() {
 #endif
 
   // Set callback functions
-  WindowBlinds.onOpen(fullOpen);
-  WindowBlinds.onClose(fullClose);
   WindowBlinds.onGoToLiftPercentage(goToLiftPercentage);
   WindowBlinds.onStop(stopMotor);
 
@@ -467,23 +466,23 @@ void loop() {
     pressdown = true;
   }
 
-#ifdef LOGGING_ENABLED
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;  // Save the time of the last event
 
     if (!Matter.isDeviceCommissioned()) {
+#ifdef LOGGING_ENABLED
       Serial.println("Matter Node is not commissioned yet.");
-      //Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-      //Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+      Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
+      Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+#endif
     } else {
-      Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
+      //Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
       if (!motor_initialized && Matter.isDeviceCommissioned()) {
-        Serial.println("initialize_motor_system() 3-1");
+        //Serial.println("initialize_motor_system() 3-1");
         delay(30000);  // Delay initializing motor for 30 seconds after Matter device commissioned. For an unknown reason, the Hub takes times to create this device and the delay is required to prevent crash due to low SRAM on ESP32-C3
         initialize_motor_system();
       }
     }
   }
-#endif
 }
