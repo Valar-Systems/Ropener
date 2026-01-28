@@ -19,8 +19,10 @@
 // ========================================
 // LOGGING CONFIGURATION
 // Comment out to disable serial logging (saves memory)
+// Will NOT commission in Matter if logging is enabled
+// Also set USB CDC on Boot to OFF
 // ========================================
-#define LOGGING_ENABLED
+//#define LOGGING_ENABLED
 
 // Matter Manager
 #include <Matter.h>
@@ -138,9 +140,10 @@ static void btn1SingleClickCb(void *button_handle, void *usr_data) {
 #ifdef LOGGING_ENABLED
     Serial.println("pressdown");
 #endif
-    // Motor is already stopped by pressdown callback, just start the close operation
-    if (!is_moving) {
-      fullClose();
+    if (is_moving) {
+      stop_flag = true;
+    } else {
+      goToLiftPercentage(0);
     }
   }
 }
@@ -184,8 +187,8 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
   motor_position = 0;
   preferences.putInt(PREF_MOTOR_POS, motor_position);
 
-  currentLiftPercent = 100;            // 0
-  WindowBlinds.setLiftPercentage(99);  // Updates Matter to 100 percent closed position
+  currentLiftPercent = 100;                            // 0
+  WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 100 percent closed position
   delay(100);
   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
@@ -227,9 +230,9 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 
       set_distance = false;
 
-#ifdef LOGGING_ENABLED
-      Serial.println("Updating Matter");
-#endif
+      // pressdown = false;
+      // pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
+
       currentLiftPercent = 100;                            // 0 = fullclose // 100 = fullOpen
       WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
       delay(100);
@@ -243,6 +246,7 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
       WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
 
 #ifdef LOGGING_ENABLED
+      Serial.println("Updating Matter");
       Serial.println("revolutions: ");
       Serial.println(revolutions);
       Serial.println("MAX_LIFT: ");
@@ -276,12 +280,14 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
 #ifdef LOGGING_ENABLED
     Serial.println("pressdown");
 #endif
-    // Motor is already stopped by pressdown callback, just start the open operation
-    if (!is_moving) {
-      fullOpen();
+    if (is_moving) {
+      stop_flag = true;
+    } else {
+      goToLiftPercentage(100);
     }
   }
 }
+
 
 static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
 #ifdef LOGGING_ENABLED
@@ -418,8 +424,6 @@ void setup() {
 #endif
 
   // Set callback functions
-  WindowBlinds.onOpen(fullOpen);
-  WindowBlinds.onClose(fullClose);
   WindowBlinds.onGoToLiftPercentage(goToLiftPercentage);
   WindowBlinds.onStop(stopMotor);
 
@@ -474,23 +478,23 @@ void loop() {
     pressdown = true;
   }
 
-#ifdef LOGGING_ENABLED
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;  // Save the time of the last event
 
     if (!Matter.isDeviceCommissioned()) {
+#ifdef LOGGING_ENABLED
       Serial.println("Matter Node is not commissioned yet.");
-      //Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-      //Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+      Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
+      Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
+#endif
     } else {
-      Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
+      //Serial.println("2: Matter Node is commissioned and connected to the network. Ready for use.");
       if (!motor_initialized && Matter.isDeviceCommissioned()) {
-        Serial.println("initialize_motor_system() 3-1");
+        //Serial.println("initialize_motor_system() 3-1");
         delay(30000);  // Delay initializing motor for 30 seconds after Matter device commissioned. For an unknown reason, the Hub takes times to create this device and the delay is required to prevent crash due to low SRAM on ESP32-C3
         initialize_motor_system();
       }
     }
   }
-#endif
 }

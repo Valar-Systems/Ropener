@@ -33,15 +33,6 @@
 #define STOP_MOTOR_VELOCITY 0  // Velocity to stop motor
 
 // ========================================
-// FUNCTION PROTOTYPES
-// ========================================
-
-void move_close(void);
-void move_open(void);
-void stop(void);
-void position_watcher_task(void *parameter);
-
-// ========================================
 // GLOBAL OBJECTS
 // ========================================
 
@@ -64,12 +55,6 @@ void IRAM_ATTR index_interrupt(void) {
     motor_position++;
   }
 
-  // Ensure motor position stays within bounds
-  // if (motor_position < 0) {
-  //   motor_position = 0;
-  // } else if (motor_position > maximum_motor_position) {
-  //   motor_position = maximum_motor_position;
-  // }
 }
 
 int getMotorPosition() {
@@ -91,98 +76,6 @@ void disable_driver() {
 // WINDOW COVERING CALLBACKS
 // ========================================
 
-
-
-
-// Window Covering Callbacks
-bool fullOpen() {
-  // Safety check: Don't operate motors if not initialized
-  if (!motor_initialized) {
-#ifdef LOGGING_ENABLED
-    Serial.println("fullOpen() called but motors not initialized yet. Ignoring.");
-#endif
-    return false;
-  }
-
-  target_position = maximum_motor_position;
-  printf("fullOpen: %lu\n", target_position);
-
-  // Clamp motor position to valid range
-  if (motor_position > maximum_motor_position) {
-    motor_position = maximum_motor_position;
-  }
-  if (motor_position < 0) {
-    motor_position = 0;
-  }
-
-#ifdef LOGGING_ENABLED
-  printf("target_position open: %lu\n", target_position);
-  printf("motor_position open: %lu\n", motor_position);
-  printf("max_motor_position open: %lu\n", maximum_motor_position);
-#endif
-
-  stop_flag = false;
-  is_closing = false;
-  is_moving = true;
-
-  if (target_position == motor_position) {
-#ifdef LOGGING_ENABLED
-    Serial.println("target_position == motor_position");
-#endif
-  } else {
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
-    vTaskResume(position_watcher_task_handler);
-    enable_driver();
-    driver.VACTUAL(OPEN_VELOCITY);
-  }
-
-  return true;
-}
-
-bool fullClose() {
-  // Safety check: Don't operate motors if not initialized
-  if (!motor_initialized) {
-#ifdef LOGGING_ENABLED
-    Serial.println("fullClose() called but motors not initialized yet. Ignoring.");
-#endif
-    return false;
-  }
-
-  target_position = 0;
-  printf("fullClose: %lu\n", target_position);
-
-  // Clamp motor position to valid range
-  if (motor_position > maximum_motor_position) {
-    motor_position = maximum_motor_position;
-  }
-  if (motor_position < 0) {
-    motor_position = 0;
-  }
-
-#ifdef LOGGING_ENABLED
-  printf("target_position close: %lu\n", target_position);
-  printf("motor_position close: %lu\n", motor_position);
-  printf("max_motor_position close: %lu\n", maximum_motor_position);
-#endif
-
-  stop_flag = false;
-  is_closing = true;
-  is_moving = true;
-
-  if (target_position == motor_position) {
-#ifdef LOGGING_ENABLED
-    Serial.println("target_position == motor_position");
-#endif
-  } else {
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
-    vTaskResume(position_watcher_task_handler);
-    enable_driver();
-    driver.VACTUAL(CLOSE_VELOCITY);
-  }
-
-  return true;
-}
-
 bool goToLiftPercentage(uint8_t liftPercent) {
   // Safety check: Don't operate motors if not initialized
   if (!motor_initialized) {
@@ -192,12 +85,15 @@ bool goToLiftPercentage(uint8_t liftPercent) {
     return false;
   }
 
+#ifdef LOGGING_ENABLED
   printf("goToLiftPercentage: %lu\n", liftPercent);
+#endif
 
   // Stop current movement if in progress
   if (is_moving) {
     stop_flag = true;
     delay(1000);
+    return true;
   }
 
   // Calculate target position from percentage
@@ -311,16 +207,6 @@ void position_watcher_task(void *parameter) {
 
     while (is_moving) {
       loop_counter++;
-
-
-      // FOR TESTING ONLY
-      // TO SEE HOW FAR IT TURNS WITH 200 STEPS
-      //       if (motor_position >= 100) {
-      //         stop_flag = true;
-      //         #ifdef LOGGING_ENABLED
-      //         printf("position_watcher: motor_position >= 200\n");
-      // #endif
-      //       }
 
       // Check if stop button was pressed
       if (stop_flag) {
