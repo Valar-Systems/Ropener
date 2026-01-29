@@ -54,7 +54,6 @@ void IRAM_ATTR index_interrupt(void) {
   } else {
     motor_position--;
   }
-
 }
 
 int getMotorPosition() {
@@ -90,14 +89,19 @@ bool goToLiftPercentage(uint8_t liftPercent) {
 #endif
 
   // Stop current movement if in progress
-  if (is_moving) {
-    stop_flag = true;
-    delay(1000);
-    return true;
-  }
+//   if (is_moving) {
+// #ifdef LOGGING_ENABLED
+//     Serial.println("stop_flag = true");
+// #endif
+//     stop_flag = true;
+//     delay(1000);
+//     return true;
+//   }
 
   // Calculate target position from percentage
   target_position = (liftPercent / 100.0) * maximum_motor_position;
+
+  //WindowBlinds.setTargetLiftPercent100ths(liftPercent * 100); // Update the move-to position in Matter
 
   // Clamp motor position to valid range
   if (motor_position > maximum_motor_position) {
@@ -126,12 +130,13 @@ bool goToLiftPercentage(uint8_t liftPercent) {
     is_closing = true;
     is_moving = true;
 
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
+
     vTaskResume(position_watcher_task_handler);
     delay(100);
     enable_driver();
     driver.VACTUAL(CLOSE_VELOCITY);
 
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
 
   } else if (target_position < motor_position) {
 #ifdef LOGGING_ENABLED
@@ -142,12 +147,12 @@ bool goToLiftPercentage(uint8_t liftPercent) {
     is_closing = false;
     is_moving = true;
 
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
+
     vTaskResume(position_watcher_task_handler);
     delay(100);
     enable_driver();
     driver.VACTUAL(OPEN_VELOCITY);
-
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
   }
 
   return true;
@@ -276,8 +281,10 @@ notify_and_suspend:
 #endif
 
     // Update Matter state
-    WindowBlinds.setLiftPercentage(currentLiftPercent);
+    WindowBlinds.setLiftPercentage(currentLiftPercent);  // This isn't working
+    delay(500);                                          // Maybe this will help give Matter time to update
     WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
+    delay(500);  // Maybe this will help give Matter time to update
 
     // Save state to preferences
     preferences.putUChar(PREF_LIFT_PERCENT, currentLiftPercent);
