@@ -50,9 +50,9 @@ void IRAM_ATTR stall_interrupt() {
 void IRAM_ATTR index_interrupt(void) {
 
   if (is_closing) {
-    motor_position--;
-  } else {
     motor_position++;
+  } else {
+    motor_position--;
   }
 
 }
@@ -117,7 +117,7 @@ bool goToLiftPercentage(uint8_t liftPercent) {
   if (target_position == motor_position) {
     printf("Not moving the window because it is already at the desired position\n");
     return true;
-  } else if (target_position < motor_position) {
+  } else if (target_position > motor_position) {
 #ifdef LOGGING_ENABLED
     Serial.println(" goToLiftPercentage CLOSING");
 #endif
@@ -133,7 +133,7 @@ bool goToLiftPercentage(uint8_t liftPercent) {
 
     WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
 
-  } else if (target_position > motor_position) {
+  } else if (target_position < motor_position) {
 #ifdef LOGGING_ENABLED
     Serial.println("goToLiftPercentage OPENING");
 #endif
@@ -231,7 +231,7 @@ void position_watcher_task(void *parameter) {
 
       // Check if target position reached
       if (is_closing) {
-        if (motor_position <= target_position) {
+        if (motor_position >= target_position) {
 #ifdef LOGGING_ENABLED
           printf("position_watcher: Target reached (closing) - pos: %u, target: %u\n",
                  (unsigned int)motor_position, (unsigned int)target_position);
@@ -240,7 +240,7 @@ void position_watcher_task(void *parameter) {
           goto notify_and_suspend;
         }
       } else {
-        if (motor_position >= target_position) {
+        if (motor_position <= target_position) {
 #ifdef LOGGING_ENABLED
           printf("position_watcher: Target reached (opening) - pos: %u, target: %u\n",
                  (unsigned int)motor_position, (unsigned int)target_position);
@@ -267,7 +267,7 @@ notify_and_suspend:
 #endif
     is_moving = false;
 
-    // Calculate current lift percentage (inverted for Matter standard: 0% = closed, 100% = open)
+    // Calculate current lift percentage (inverted for Matter standard: 100% = closed, 0% = open)
     int currentLiftPercent = (((float)motor_position / (float)maximum_motor_position) * 100.0);
 
 #ifdef LOGGING_ENABLED
