@@ -338,7 +338,7 @@ void setup_motors() {
   driver.TPWMTHRS(0);
   driver.VACTUAL(0);
 
-  driver.irun(20);  // Max current
+  driver.irun(31);  // Max current
 
   driver.TCOOLTHRS(80);
 

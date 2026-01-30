@@ -22,7 +22,7 @@
 // Will NOT commission in Matter if logging is enabled
 // Also set USB CDC on Boot to OFF
 // ========================================
-#define LOGGING_ENABLED
+//#define LOGGING_ENABLED
 
 // Matter Manager
 #include <Matter.h>
@@ -97,8 +97,7 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
 
     if (set_distance) {
 
-
-      // IMMEDIATELY stop the motor - don't wait for position watcher
+      // stop the motor 
       disable_driver();
       driver.VACTUAL(STOP_MOTOR_VELOCITY);
 
@@ -228,7 +227,7 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 
     if (set_distance) {
 
-      // IMMEDIATELY stop the motor - don't wait for position watcher
+      //  stop the motor
       disable_driver();
       driver.VACTUAL(STOP_MOTOR_VELOCITY);
 
