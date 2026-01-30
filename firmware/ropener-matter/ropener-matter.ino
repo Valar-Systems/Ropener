@@ -88,34 +88,38 @@ static void btn1PressDownCb(void *button_handle, void *usr_data) {
 #ifdef LOGGING_ENABLED
     Serial.println("Stop Flag - IMMEDIATE STOP");
 #endif
-    
-    // IMMEDIATELY stop the motor - don't wait for position watcher
-    disable_driver();
-    driver.VACTUAL(STOP_MOTOR_VELOCITY);
-    
+
     stop_flag = true;
-    is_moving = false;
+    //is_moving = false; // Will trigger position watcher task
 
     pressdown = false;
     pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
     if (set_distance) {
+
+      // stop the motor 
+      disable_driver();
+      driver.VACTUAL(STOP_MOTOR_VELOCITY);
+
       motor_position = 0;
       preferences.putInt(PREF_MOTOR_POS, motor_position);
 
-      currentLiftPercent = 0;
-      WindowBlinds.setLiftPercentage(currentLiftPercent);
+      WindowBlinds.setLiftPercentage(100);  // Closed position
+      delay(200);
+      WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
+      delay(200);
 
       set_distance = false;
+      is_moving = false;
 
 #ifdef LOGGING_ENABLED
       Serial.print("Motor position: ");
       Serial.println(motor_position);
 #endif
     }
-    
+
     // Update Matter state immediately
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
+    //WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL); // call this in the loop
   }
 }
 
@@ -143,7 +147,9 @@ static void btn1SingleClickCb(void *button_handle, void *usr_data) {
     if (is_moving) {
       stop_flag = true;
     } else {
-      goToLiftPercentage(0);
+
+      WindowBlinds.setTargetLiftPercent100ths(100 * 100);  // Update the move-to position in Matter
+      goToLiftPercentage(100);
     }
   }
 }
@@ -164,10 +170,12 @@ static void btn1DoubleClickCb(void *button_handle, void *usr_data) {
 
   is_closing = true;
   set_distance = true;
+  is_moving = true;
+
+  WindowBlinds.setTargetLiftPercent100ths(100 * 100);  // Update the move-to position in Matter
 
   enable_driver();
   driver.VACTUAL(CLOSE_VELOCITY);
-  is_moving = true;
 }
 
 // Sets zero position
@@ -184,13 +192,15 @@ static void btn1LongPressStartCb(void *button_handle, void *usr_data) {
     return;
   }
 
-  motor_position = 0;
+  motor_position = maximum_motor_position;
   preferences.putInt(PREF_MOTOR_POS, motor_position);
 
-  currentLiftPercent = 100;                            // 0
-  WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 100 percent closed position
-  delay(100);
+  // WindowBlinds.setTargetLiftPercent100ths(100 * 100);  // Update the move-to position in Matter
+  // delay(500);
+  WindowBlinds.setLiftPercentage(100);  // Fully closed is 100 percent
+  delay(500);
   WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
+  delay(500);
 
 #ifdef LOGGING_ENABLED
   Serial.print("Motor position: ");
@@ -208,40 +218,46 @@ static void btn2PressDownCb(void *button_handle, void *usr_data) {
 #ifdef LOGGING_ENABLED
     Serial.println("Stop Flag - IMMEDIATE STOP");
 #endif
-    
-    // IMMEDIATELY stop the motor - don't wait for position watcher
-    disable_driver();
-    driver.VACTUAL(STOP_MOTOR_VELOCITY);
-    
+
     stop_flag = true;
-    is_moving = false;
+    //is_moving = false;
 
     pressdown = false;
     pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
     if (set_distance) {
-      maximum_motor_position = motor_position;
-      preferences.putInt(PREF_MOTOR_POS, motor_position);
+
+      //  stop the motor
+      disable_driver();
+      driver.VACTUAL(STOP_MOTOR_VELOCITY);
+
+      maximum_motor_position = abs(motor_position);
       preferences.putInt(PREF_MAX_MOTOR_POS, motor_position);
+
+      motor_position = 0;  // When fully open, motor position is actually 0
+      preferences.putInt(PREF_MOTOR_POS, motor_position);
+
 #ifdef LOGGING_ENABLED
       Serial.print("Motor position: ");
       Serial.println(motor_position);
 #endif
 
       set_distance = false;
-
+      is_moving = false;
+      
       // pressdown = false;
       // pressdown_timer = millis() + PRESSDOWN_DELAY;  //start timer to ignore release for 1 second
 
-      currentLiftPercent = 100;                            // 0 = fullclose // 100 = fullOpen
-      WindowBlinds.setLiftPercentage(currentLiftPercent);  // Updates Matter to 0 percent position
-      delay(100);
+      // WindowBlinds.setTargetLiftPercent100ths(0 * 100);  // Update the move-to position in Matter
+      // delay(500);
+      WindowBlinds.setLiftPercentage(0);  // Update Matter to 0 percent position which is full open
+      delay(500);
       WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
 
       //Convert distance to centimeters
       float revolutions;
-      revolutions = (float)motor_position / 100;  // 100 pulses per revolution. This gives us the number of revolutions
-      MAX_LIFT = (float)revolutions * 3.7699f;    // The curtain will move 3.7699 cm per revolution
+      revolutions = (float)maximum_motor_position / 100;  // 100 pulses per revolution. This gives us the number of revolutions
+      MAX_LIFT = (float)revolutions * 3.7699f;            // The curtain will move 3.7699 cm per revolution
       preferences.putInt(PREF_MAX_LIFT, MAX_LIFT);
       WindowBlinds.setInstalledClosedLimitLift(MAX_LIFT);
 
@@ -283,7 +299,8 @@ static void btn2SingleClickCb(void *button_handle, void *usr_data) {
     if (is_moving) {
       stop_flag = true;
     } else {
-      goToLiftPercentage(100);
+      WindowBlinds.setTargetLiftPercent100ths(0 * 100);  // Update the move-to position in Matter
+      goToLiftPercentage(0);
     }
   }
 }
@@ -306,7 +323,9 @@ static void btn2DoubleClickCb(void *button_handle, void *usr_data) {
   set_distance = true;
   is_moving = true;
 
-  motor_position = 0;  // Set current motor position to 0
+  motor_position = 0;  // Set current motor position to 0 to begin counting
+
+  WindowBlinds.setTargetLiftPercent100ths(0 * 100);  // Update the move-to position in Matter
 
   enable_driver();
   driver.VACTUAL(OPEN_VELOCITY);
@@ -362,7 +381,7 @@ static void btn3LongPressStartCb(void *button_handle, void *usr_data) {
 #endif
 
   //Reset matter
-  WindowBlinds.setLiftPercentage(0);  // close the covering
+  WindowBlinds.setLiftPercentage(100);
   Matter.decommission();
   delay(500);
   ESP.restart();  // Restart to de-initialize the motor

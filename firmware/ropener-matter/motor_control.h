@@ -50,11 +50,10 @@ void IRAM_ATTR stall_interrupt() {
 void IRAM_ATTR index_interrupt(void) {
 
   if (is_closing) {
-    motor_position--;
-  } else {
     motor_position++;
+  } else {
+    motor_position--;
   }
-
 }
 
 int getMotorPosition() {
@@ -90,14 +89,19 @@ bool goToLiftPercentage(uint8_t liftPercent) {
 #endif
 
   // Stop current movement if in progress
-  if (is_moving) {
-    stop_flag = true;
-    delay(1000);
-    return true;
-  }
+//   if (is_moving) {
+// #ifdef LOGGING_ENABLED
+//     Serial.println("stop_flag = true");
+// #endif
+//     stop_flag = true;
+//     delay(1000);
+//     return true;
+//   }
 
   // Calculate target position from percentage
   target_position = (liftPercent / 100.0) * maximum_motor_position;
+
+  //WindowBlinds.setTargetLiftPercent100ths(liftPercent * 100); // Update the move-to position in Matter
 
   // Clamp motor position to valid range
   if (motor_position > maximum_motor_position) {
@@ -117,7 +121,7 @@ bool goToLiftPercentage(uint8_t liftPercent) {
   if (target_position == motor_position) {
     printf("Not moving the window because it is already at the desired position\n");
     return true;
-  } else if (target_position < motor_position) {
+  } else if (target_position > motor_position) {
 #ifdef LOGGING_ENABLED
     Serial.println(" goToLiftPercentage CLOSING");
 #endif
@@ -126,14 +130,15 @@ bool goToLiftPercentage(uint8_t liftPercent) {
     is_closing = true;
     is_moving = true;
 
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
+
     vTaskResume(position_watcher_task_handler);
     delay(100);
     enable_driver();
     driver.VACTUAL(CLOSE_VELOCITY);
 
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_DOWN_OR_CLOSE);
 
-  } else if (target_position > motor_position) {
+  } else if (target_position < motor_position) {
 #ifdef LOGGING_ENABLED
     Serial.println("goToLiftPercentage OPENING");
 #endif
@@ -142,12 +147,12 @@ bool goToLiftPercentage(uint8_t liftPercent) {
     is_closing = false;
     is_moving = true;
 
+    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
+
     vTaskResume(position_watcher_task_handler);
     delay(100);
     enable_driver();
     driver.VACTUAL(OPEN_VELOCITY);
-
-    WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::MOVING_UP_OR_OPEN);
   }
 
   return true;
@@ -231,7 +236,7 @@ void position_watcher_task(void *parameter) {
 
       // Check if target position reached
       if (is_closing) {
-        if (motor_position <= target_position) {
+        if (motor_position >= target_position) {
 #ifdef LOGGING_ENABLED
           printf("position_watcher: Target reached (closing) - pos: %u, target: %u\n",
                  (unsigned int)motor_position, (unsigned int)target_position);
@@ -240,7 +245,7 @@ void position_watcher_task(void *parameter) {
           goto notify_and_suspend;
         }
       } else {
-        if (motor_position >= target_position) {
+        if (motor_position <= target_position) {
 #ifdef LOGGING_ENABLED
           printf("position_watcher: Target reached (opening) - pos: %u, target: %u\n",
                  (unsigned int)motor_position, (unsigned int)target_position);
@@ -267,7 +272,7 @@ notify_and_suspend:
 #endif
     is_moving = false;
 
-    // Calculate current lift percentage (inverted for Matter standard: 0% = closed, 100% = open)
+    // Calculate current lift percentage (inverted for Matter standard: 100% = closed, 0% = open)
     int currentLiftPercent = (((float)motor_position / (float)maximum_motor_position) * 100.0);
 
 #ifdef LOGGING_ENABLED
@@ -276,8 +281,10 @@ notify_and_suspend:
 #endif
 
     // Update Matter state
-    WindowBlinds.setLiftPercentage(currentLiftPercent);
+    WindowBlinds.setLiftPercentage(currentLiftPercent);  // This isn't working
+    delay(500);                                          // Maybe this will help give Matter time to update
     WindowBlinds.setOperationalState(MatterWindowCovering::LIFT, MatterWindowCovering::STALL);
+    delay(500);  // Maybe this will help give Matter time to update
 
     // Save state to preferences
     preferences.putUChar(PREF_LIFT_PERCENT, currentLiftPercent);
@@ -331,7 +338,7 @@ void setup_motors() {
   driver.TPWMTHRS(0);
   driver.VACTUAL(0);
 
-  driver.irun(20);  // Max current
+  driver.irun(31);  // Max current
 
   driver.TCOOLTHRS(80);
 
