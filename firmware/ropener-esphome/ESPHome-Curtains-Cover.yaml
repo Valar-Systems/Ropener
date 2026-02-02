@@ -95,7 +95,7 @@ binary_sensor:
    pin:
      number: 4
      mode: INPUT
-     inverted: false
+     inverted: true
    filters:
      - delayed_on: 10ms
    on_press:
@@ -109,7 +109,7 @@ binary_sensor:
    pin:
      number: 3
      mode: INPUT
-     inverted: false
+     inverted: true
    filters:
      - delayed_on: 10ms
    on_press:
@@ -135,10 +135,10 @@ cover:
     close_action:
       - stepper.report_position:
           id: driver
-          position: ${closed_pos}
+          position: !lambda return (1.0-id(ropener)->position) * ${closed_pos};
       - stepper.set_target:
           id: driver
-          target: ${closed_pos}
+          target: !lambda return ${closed_pos};
 
 #    position_action:
 #      - stepper.report_position:
