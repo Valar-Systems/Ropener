@@ -17,11 +17,6 @@ esp32:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-    # Optional manual IP
-  manual_ip:
-    static_ip: 192.168.86.28
-    gateway: 192.168.86.1
-    subnet: 255.255.255.0
 
 esphome:
   name: actuator
