@@ -12,6 +12,9 @@ external_components:
   - source: github://slimcdk/esphome-custom-components
     components: [tmc2209_hub, tmc2209, stepper]
 
+substitutions:
+  closed_pos: "30000" # full blinds length (in encoder counts) !! CHANGE TO SUIT YOUR SETUP !!
+
 globals:
   - id: sensored_home_pos
     type: int32_t
@@ -23,6 +26,8 @@ wifi:
   password: !secret wifi_password
 
 api:
+  encryption:
+    key: "BkQ8Fzci9Z5Sbm9b6xUtuVMuk1BpEvqOyk+eypu7/x4="
 
 ota:
   - platform: esphome
@@ -54,8 +59,8 @@ esphome:
         run_current: 1200m #Set your desired current here (800m = 800mA, 1 = 1A etc.)
         standstill_mode: freewheeling
 
-    - delay: 0.5s
-    - lambda: id(sensored_home_pos) = id(encoder)->get_state();  # Set the home (open) position to power on position
+#    - delay: 0.5s
+#    - lambda: id(sensored_home_pos) = id(encoder)->get_state();  # Set the home (open) position to power on position
     # - button.press: home
 
 uart:
@@ -81,7 +86,7 @@ stepper:
     on_stall:
       - logger.log: "Motor stalled!"
       - stepper.stop: motor #disables the motor on a stallGuard event
-      - lambda: id(sensored_home_pos) = id(encoder)->get_state();  #This set sets the new home position to the stalled position
+#     - lambda: id(sensored_home_pos) = id(encoder)->get_state();  #This set sets the new home position to the stalled position
       - cover.template.publish:
           id: ropener
           state: OPEN
@@ -98,8 +103,7 @@ button:
           id: motor
           # 1.2 * encoder_closed_pos makes it travel 120% of the distance to ensure home is hit and a motor stall forces the new home position.
           # The negative sign ensures it moves toward the "Home/Open" direction.
-          target: !lambda |-
-            return -1.2 * ${encoder_closed_pos};
+          target: !lambda return -1.2 * ${closed_pos};
 
   - platform: template
     name: Stop
@@ -132,6 +136,29 @@ binary_sensor:
    on_press:
      - cover.close: ropener
 
+ - platform: gpio
+   name: Limit Switch 1
+   id: limit_switch_1
+   pin:
+     number: 10
+     mode: INPUT
+     inverted: true
+   filters:
+     - delayed_on: 10ms
+   on_press:
+     - cover.close: ropener
+
+ - platform: gpio
+   name: Limit Switch 2
+   id: limit_switch_2
+   pin:
+     number: 2
+     mode: INPUT
+     inverted: true
+   filters:
+     - delayed_on: 10ms
+   on_press:
+     - cover.close: ropener
 
 cover:
   - platform: template
@@ -140,27 +167,27 @@ cover:
     has_position: true
     assumed_state: false
     # internal: true
-    lambda: "return 1.0 - ((id(encoder)->get_state()-id(sensored_home_pos)) / ${encoder_closed_pos});"
+#    lambda: "return 1.0 - ((id(encoder)->get_state()-id(sensored_home_pos)));"
     stop_action:
       - stepper.stop: motor
     open_action:
       - stepper.report_position:
           id: motor
-          position: !lambda return (1.0-id(ropener)->position) * ${encoder_closed_pos} * ${stepper_encoder_ratio};
+          position: !lambda return (1.0-id(ropener)->position);
       - stepper.set_target:
           id: motor
           target: 0
     close_action:
       - stepper.report_position:
           id: motor
-          position: !lambda return (1.0-id(ropener)->position) * ${encoder_closed_pos} * ${stepper_encoder_ratio};
+          position: !lambda return (1.0-id(ropener)->position);
       - stepper.set_target:
           id: motor
-          target: !lambda return ${encoder_closed_pos} * ${stepper_encoder_ratio} * 1.01;
+          target: !lambda return (1.0-id(ropener)->position);
     position_action:
       - stepper.report_position:
           id: motor
-          position: !lambda return (1.0-id(ropener)->position) * ${encoder_closed_pos} * ${stepper_encoder_ratio};
+          position: !lambda return (1.0-id(ropener)->position);
       - stepper.set_target:
           id: motor
-          target: !lambda return (1.0-pos) * ${encoder_closed_pos} * ${stepper_encoder_ratio};
+          target: !lambda return (1.0-pos);
