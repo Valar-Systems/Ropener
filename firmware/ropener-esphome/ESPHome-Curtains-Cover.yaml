@@ -2,14 +2,13 @@ external_components:
   - source: github://slimcdk/esphome-custom-components
     components: [tmc2209_hub, tmc2209, stepper]
 
-# For MK7 drive gear:
-#      revolutions = (float)maximum_motor_position / 100;  // 100 pulses per revolution. This gives us the number of revolutions
-#      MAX_LIFT = (float)revolutions * 3.7699f;            // The curtain will move 3.7699 cm per revolution
-
-# Ideally, need an easy way to convert inches into steps
-
 substitutions:
-  closed_pos: "8000" # full blinds length (in pulse counts) // 100 counts per revolution? // CHANGE TO SUIT YOUR SETUP
+  max_distance_cm: "60.96" # full blinds length (in centimeters) // CHANGE TO SUIT YOUR SETUP
+
+  gear_distance_cm: "3.7699" # Use for MK7 drive gear // The curtain will move 3.7699 cm per revolution
+  steps_per_revolution: "1600"
+  max_distance_revs: "float(${max_distance_cm})/${gear_distance_cm}"
+  max_distance_steps: "${max_distance_revs}*${steps_per_revolution}" # converts cm to steps. Use this in remaining code
 
 api:
 
@@ -97,30 +96,30 @@ cover:
     has_position: true
     assumed_state: false
     # internal: true
-#    lambda: "return 1.0 - ((id(encoder)->get_state()-id(sensored_home_pos)));"
+    lambda: "return 1.0 - ((id(ropener)->get_state()-id(max_distance_steps)));"
     stop_action:
       - stepper.stop: driver
     open_action:
       - stepper.report_position:
           id: driver
-          position: !lambda return (1.0 - id(ropener)->position) * ${closed_pos};
+          position: !lambda return (1.0 - id(ropener)->position) * ${max_distance_steps};
       - stepper.set_target:
           id: driver
           target: 0
     close_action:
       - stepper.report_position:
           id: driver
-          position: !lambda return (1.0-id(ropener)->position) * ${closed_pos};
+          position: !lambda return (1.0-id(ropener)->position) * ${max_distance_steps};
       - stepper.set_target:
           id: driver
-          target: !lambda return ${closed_pos};
+          target: !lambda return ${max_distance_steps};
     position_action:
       - stepper.report_position:
           id: driver
-          position: !lambda return (1.0-id(ropener)->position) * ${closed_pos};
+          position: !lambda return (1.0-id(ropener)->position) * ${max_distance_steps};
       - stepper.set_target:
           id: driver
-          target: !lambda return (1.0-pos) * ${closed_pos};
+          target: !lambda return (1.0-pos) * ${max_distance_steps};
 
 # button:
 #   - platform: template
