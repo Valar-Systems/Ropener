@@ -91,32 +91,33 @@ binary_sensor:
 
 cover:
   - platform: template
-    id: ropener
-    name: "Ropener"
+    id: ropener_cover
+    name: Ropener
     has_position: true
     assumed_state: false
-    # internal: true
-    lambda: "return 1.0 - ((id(ropener)->get_state()-id(max_distance_steps)));"
+    #lambda: "return 1.0 - ((id(encoder)->get_state()-id(sensored_home_pos)));"
+    #lambda: "return 1.0 - float(id(cover_steps)-id(home_steps)) / ${max_distance_steps};"
+    lambda: "return 1.0 - ((id(ropener_cover)->position - id(cover_steps)) / ${max_distance_steps});"
     stop_action:
       - stepper.stop: driver
     open_action:
       - stepper.report_position:
           id: driver
-          position: !lambda return (1.0 - id(ropener)->position) * ${max_distance_steps};
+          position: !lambda return (1.0 - id(ropener_cover)->position) * ${max_distance_steps};
       - stepper.set_target:
           id: driver
           target: 0
     close_action:
       - stepper.report_position:
           id: driver
-          position: !lambda return (1.0-id(ropener)->position) * ${max_distance_steps};
+          position: !lambda return (1.0-id(ropener_cover)->position) * ${max_distance_steps};
       - stepper.set_target:
           id: driver
           target: !lambda return ${max_distance_steps};
     position_action:
       - stepper.report_position:
           id: driver
-          position: !lambda return (1.0-id(ropener)->position) * ${max_distance_steps};
+          position: !lambda return (1.0-id(ropener_cover)->position) * ${max_distance_steps};
       - stepper.set_target:
           id: driver
           target: !lambda return (1.0-pos) * ${max_distance_steps};
