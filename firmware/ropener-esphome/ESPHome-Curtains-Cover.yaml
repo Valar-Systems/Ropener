@@ -26,11 +26,6 @@ esp32:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-    # Optional manual IP
-  manual_ip:
-    static_ip: 192.168.86.28
-    gateway: 192.168.86.1
-    subnet: 255.255.255.0
 
 esphome:
   name: ropener
@@ -128,7 +123,7 @@ cover:
     open_action:
       - stepper.report_position:
           id: driver
-          position: 0
+          position: !lambda return (1.0 - id(ropener)->position) * ${closed_pos};
       - stepper.set_target:
           id: driver
           target: 0
@@ -139,14 +134,13 @@ cover:
       - stepper.set_target:
           id: driver
           target: !lambda return ${closed_pos};
-
-#    position_action:
-#      - stepper.report_position:
-#          id: motor
-#          position: !lambda return (1.0-id(ropener)->position);
-#      - stepper.set_target:
-#          id: motor
-#          target: !lambda return (1.0-pos);
+    position_action:
+      - stepper.report_position:
+          id: driver
+          position: !lambda return (1.0-id(ropener)->position) * ${closed_pos};
+      - stepper.set_target:
+          id: driver
+          target: !lambda return (1.0-pos) * ${closed_pos};
 
 
 #number:
