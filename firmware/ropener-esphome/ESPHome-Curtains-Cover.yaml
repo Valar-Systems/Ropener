@@ -63,26 +63,6 @@ stepper:
       - logger.log: "Motor stalled!"
       - stepper.stop: driver
 
-# button:
-#   - platform: template
-#     name: Stop
-#     on_press:
-#       - stepper.stop: driver
-
-#   - platform: template
-#     name: 1000 Steps forward
-#     on_press:
-#       - stepper.set_target:
-#           id: driver
-#           target: !lambda return id(driver)->current_position +1000;
-
-#   - platform: template
-#     name: 1000 Steps backward
-#     on_press:
-#       - stepper.set_target:
-#           id: driver
-#           target: !lambda return id(driver)->current_position -1000;
-
 binary_sensor:
  - platform: gpio
    name: Button 1
@@ -142,6 +122,25 @@ cover:
           id: driver
           target: !lambda return (1.0-pos) * ${closed_pos};
 
+# button:
+#   - platform: template
+#     name: Stop
+#     on_press:
+#       - stepper.stop: driver
+
+#   - platform: template
+#     name: 1000 Steps forward
+#     on_press:
+#       - stepper.set_target:
+#           id: driver
+#           target: !lambda return id(driver)->current_position +1000;
+
+#   - platform: template
+#     name: 1000 Steps backward
+#     on_press:
+#       - stepper.set_target:
+#           id: driver
+#           target: !lambda return id(driver)->current_position -1000;
 
 #number:
 #  - platform: template
