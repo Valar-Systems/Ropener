@@ -3,7 +3,8 @@ external_components:
     components: [tmc2209_hub, tmc2209, stepper]
 
 substitutions:
-  max_distance_cm: "60.96" # full blinds length (in centimeters) // CHANGE TO SUIT YOUR SETUP
+  max_distance_cm: "80" # full blinds length (in centimeters) // CHANGE TO SUIT YOUR SETUP
+  stepper_direction: "cw" # change to "cw" or "ccw" to change direction
 
   gear_distance_cm: "3.7699" # Use for MK7 drive gear // The curtain will move 3.7699 cm per revolution
   steps_per_revolution: "1600"
@@ -30,13 +31,14 @@ esphome:
   name: ropener
   on_boot:
     - tmc2209.configure:
+        direction: ${stepper_direction}
         microsteps: 8
         interpolation: true
     - tmc2209.stallguard:
         threshold: 50
     - tmc2209.currents:
         standstill_mode: freewheeling
-        irun: 16 # 0-31. 31 = 2A current
+        irun: 31 # 0-31. 31 = 2A current
         ihold: 0
         tpowerdown: 0
         iholddelay: 0
@@ -49,18 +51,21 @@ uart:
 stepper:
   - platform: tmc2209
     id: driver
-    max_speed: 900 steps/s
-    acceleration: 1500 steps/s^2
-    deceleration: 500 steps/s^2
+    max_speed: 1600 steps/s
+    acceleration: 2000 steps/s^2
+    deceleration: 1000 steps/s^2
     config_dump_include_registers: true
-    rsense: 110 mOhm
+    rsense: 100 mOhm
     vsense: False
     enn_pin: 8
     index_pin: 0
     diag_pin: 1
     on_stall:
-      - logger.log: "Motor stalled!"
       - stepper.stop: driver
+      - stepper.report_position:
+          id: driver
+          position: !lambda return ${max_distance_steps};
+      - logger.log: "Homed cover"
 
 binary_sensor:
  - platform: gpio
@@ -72,10 +77,17 @@ binary_sensor:
      inverted: true
    filters:
      - delayed_on: 10ms
-   on_press:
-     - cover.close: ropener
-#   on_double_click:
-#     - !lambda id(ropener).position = 0;
+   on_release: #
+     then:
+       - cover.close: ropener_cover
+   on_click: # Set the current position to zero. Also needs to update the cover
+      min_length: 3000ms
+      max_length: 10000ms
+      then:
+        - stepper.report_position:
+            id: driver
+            position: 0
+        - logger.log: "Homed cover"
 
  - platform: gpio
    name: Button 2
@@ -87,7 +99,7 @@ binary_sensor:
    filters:
      - delayed_on: 10ms
    on_press:
-     - cover.open: ropener
+     - cover.open: ropener_cover
 
 cover:
   - platform: template
@@ -95,64 +107,27 @@ cover:
     name: Ropener
     has_position: true
     assumed_state: false
-    #lambda: "return 1.0 - ((id(encoder)->get_state()-id(sensored_home_pos)));"
-    #lambda: "return 1.0 - float(id(cover_steps)-id(home_steps)) / ${max_distance_steps};"
-    lambda: "return 1.0 - ((id(ropener_cover)->position - id(cover_steps)) / ${max_distance_steps});"
+    lambda: "return id(driver)->current_position / ${max_distance_steps};"
     stop_action:
       - stepper.stop: driver
     open_action:
-      - stepper.report_position:
-          id: driver
-          position: !lambda return (1.0 - id(ropener_cover)->position) * ${max_distance_steps};
-      - stepper.set_target:
-          id: driver
-          target: 0
-    close_action:
-      - stepper.report_position:
-          id: driver
-          position: !lambda return (1.0-id(ropener_cover)->position) * ${max_distance_steps};
       - stepper.set_target:
           id: driver
           target: !lambda return ${max_distance_steps};
-    position_action:
-      - stepper.report_position:
+    close_action:
+      - stepper.set_target:
           id: driver
-          position: !lambda return (1.0-id(ropener_cover)->position) * ${max_distance_steps};
+          target: 0
+    position_action:
       - stepper.set_target:
           id: driver
           target: !lambda return (1.0-pos) * ${max_distance_steps};
-
-# button:
-#   - platform: template
-#     name: Stop
-#     on_press:
-#       - stepper.stop: driver
-
-#   - platform: template
-#     name: 1000 Steps forward
-#     on_press:
-#       - stepper.set_target:
-#           id: driver
-#           target: !lambda return id(driver)->current_position +1000;
-
-#   - platform: template
-#     name: 1000 Steps backward
-#     on_press:
-#       - stepper.set_target:
-#           id: driver
-#           target: !lambda return id(driver)->current_position -1000;
-
-#number:
-#  - platform: template
-#    name: Target position
-#    min_value: -100000
-#    max_value: 100000
-#    step: 100
-#    lambda: return id(driver)->current_position;
-#    update_interval: 1s
-#    set_action:
-#      - stepper.set_target:
-#          id: driver
-#          target: !lambda "return x;"
-
+          
+button:
+  - platform: template
+    name: Set Zero Position
+    on_press:
+      - stepper.report_position:
+          id: driver
+          position: 0
 
