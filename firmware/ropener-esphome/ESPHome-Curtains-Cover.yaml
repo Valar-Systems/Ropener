@@ -3,8 +3,10 @@ external_components:
     components: [tmc2209_hub, tmc2209, stepper]
 
 substitutions:
-  max_distance_cm: "80" # full blinds length (in centimeters) // CHANGE TO SUIT YOUR SETUP
+  ### CHANGE THESE ###
+  max_distance_cm: "80" # full blinds length (in centimeters)
   stepper_direction: "cw" # change to "cw" or "ccw" to change direction
+  ####################
 
   gear_distance_cm: "3.7699" # Use for MK7 drive gear // The curtain will move 3.7699 cm per revolution
   steps_per_revolution: "1600"
@@ -51,9 +53,9 @@ uart:
 stepper:
   - platform: tmc2209
     id: driver
-    max_speed: 1600 steps/s
+    max_speed: 2000 steps/s
     acceleration: 2000 steps/s^2
-    deceleration: 1000 steps/s^2
+    deceleration: 200 steps/s^2
     config_dump_include_registers: true
     rsense: 100 mOhm
     vsense: False
@@ -130,4 +132,3 @@ button:
       - stepper.report_position:
           id: driver
           position: 0
-
