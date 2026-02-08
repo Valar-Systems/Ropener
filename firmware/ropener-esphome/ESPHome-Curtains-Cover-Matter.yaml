@@ -108,7 +108,7 @@ cover:
     name: Ropener
     has_position: true
     assumed_state: false
-    lambda: "return id(driver)->current_position / ${max_distance_steps};"
+    lambda: "return 1.0 - (id(driver)->current_position / ${max_distance_steps});"
     stop_action:
       - stepper.stop: driver
     open_action:
@@ -122,7 +122,7 @@ cover:
     position_action:
       - stepper.set_target:
           id: driver
-          target: !lambda return (pos) * ${max_distance_steps};
+          target: !lambda return (1.0 - pos) * ${max_distance_steps};
           
 button:
   - platform: template
