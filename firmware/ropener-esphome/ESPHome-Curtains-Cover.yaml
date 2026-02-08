@@ -80,7 +80,7 @@ binary_sensor:
    on_release: #
      then:
        - cover.close: ropener_cover
-   on_click: # Set the current position to zero. Also needs to update the cover
+   on_click: # Sets the current position to maximum.
       min_length: 3000ms
       max_length: 10000ms
       then:
