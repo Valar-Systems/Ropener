@@ -3,10 +3,8 @@ external_components:
     components: [tmc2209_hub, tmc2209, stepper]
 
 substitutions:
-  ### CHANGE THESE ###
-  max_distance_cm: "80" # full blinds length (in centimeters)
-  stepper_direction: "cw" # change to "cw" or "ccw" to change direction
-  ####################
+  max_distance_cm: "80" # full blinds length (in centimeters) // CHANGE TO SUIT YOUR SETUP
+  stepper_direction: "ccw" # change to "cw" or "ccw" to change direction
 
   gear_distance_cm: "3.7699" # Use for MK7 drive gear // The curtain will move 3.7699 cm per revolution
   steps_per_revolution: "1600"
@@ -30,7 +28,7 @@ wifi:
   password: !secret wifi_password
 
 esphome:
-  name: ropener
+  name: ropener-office
   on_boot:
     - tmc2209.configure:
         direction: ${stepper_direction}
@@ -53,9 +51,9 @@ uart:
 stepper:
   - platform: tmc2209
     id: driver
-    max_speed: 2000 steps/s
+    max_speed: 2000 steps/s # Faster speed is louder
     acceleration: 2000 steps/s^2
-    deceleration: 200 steps/s^2
+    deceleration: 3000 steps/s^2
     config_dump_include_registers: true
     rsense: 100 mOhm
     vsense: False
@@ -88,7 +86,7 @@ binary_sensor:
       then:
         - stepper.report_position:
             id: driver
-            position: 0
+            position: !lambda return ${max_distance_steps};
         - logger.log: "Homed cover"
 
  - platform: gpio
@@ -100,7 +98,8 @@ binary_sensor:
      inverted: true
    filters:
      - delayed_on: 10ms
-   on_press:
+   on_release:
+    then:
      - cover.open: ropener_cover
 
 cover:
@@ -109,26 +108,26 @@ cover:
     name: Ropener
     has_position: true
     assumed_state: false
-    lambda: "return id(driver)->current_position / ${max_distance_steps};"
+    lambda: "return 1.0 - (id(driver)->current_position / ${max_distance_steps});"
     stop_action:
       - stepper.stop: driver
     open_action:
       - stepper.set_target:
           id: driver
-          target: !lambda return ${max_distance_steps};
+          target: 0
     close_action:
       - stepper.set_target:
           id: driver
-          target: 0
+          target: !lambda return ${max_distance_steps};
     position_action:
       - stepper.set_target:
           id: driver
-          target: !lambda return (1.0-pos) * ${max_distance_steps};
+          target: !lambda return (1.0 - pos) * ${max_distance_steps};
           
 button:
   - platform: template
-    name: Set Zero Position
+    name: Set Close Position
     on_press:
       - stepper.report_position:
           id: driver
-          position: 0
+          position: !lambda return ${max_distance_steps};
