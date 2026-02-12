@@ -6,12 +6,9 @@ Without the kit, it's a pain to source all the parts, and costs a lot more becau
 ![kit photo](/media/ropener_kit.jpg)
 
 
-## New Book!!
-I've written a short book to teach you how to program this Trinamic stepper motor from scratch. It can be found [here](https://valarsystems.com/products/controlling-trinamic-drivers-pdf)
-
 # Ropener: Automated Curtain Opener
 
-The Ropener is a smart curtain opener that uses two buttons and HTTP requests to open and close your curtain. Combine it with Node-RED, Home Assistant (via ESPhome), or any other system capable of sending HTTP requests and get your curtain to open and close automatically.
+The Ropener is a smart curtain opener that uses two buttons and HTTP requests or ESPHome to open and close your curtain. Combine it with Node-RED, Home Assistant (via ESPhome), or any other system capable of sending HTTP requests and get your curtain to open and close automatically.
 
 ![window opener GIF](/media/curtain-gif.gif)
 
@@ -41,17 +38,17 @@ This works on backtab curtains that looks like this:
 Or with curtains with rings, like this:
 ![window opener GIF](/media/curtain-rings2.jpg)
 
+
 ## How to build it
+
+The build guide can be found [here](https://www.canva.com/design/DAHAzX1956w/QnXkFw6Gx1b4t2T4kpTvWQ/view?utm_content=DAHAzX1956w&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hb3c45bcf45).
 
 We've created a hardware kit that includes everything. If you source the parts individually, it will cost 5X more just because all of the hardware need to purchased in bulk from places like McMaster-Carr. You may optionally 3D print your parts.
 
 * Total print time: ~12 hours (You can also purchase the 3D prints)
 * Total assembly time: ~20 minutes
 
-1. [This kit **excludes** 3D printed parts](https://valarsystems.com/products/s1-adjustable-curtain-opener?variant=39595200315451)
-2. [This kit **Includes** 3D printed parts](https://valarsystems.com/products/s1-adjustable-curtain-opener?variant=395952002826837)
-
-![window opener parts](/media/kit-parts.jpg)
+[Link to kit](https://valarsystems.com/products/morningrope)
 
 
 ## How to 3D print it
@@ -63,9 +60,7 @@ Go to the repo folder "hardware" -> "Plastics" -> "platter"
 
 Either use command strips (which is recommended) or 4 small nails (for drywall only), or two screws/anchors. It's very easy to install.
 
+
 ## Sending commands
 
-Commands are sent via HTTP requests
-
-Follow the instructions outlined in the ![firmware](/firmware) folder.
-
+ESPHome is the preferred way of controlling it. Pair it with Matterbridge and you can control your curtains with Alexa, Apple, and Google Home.
