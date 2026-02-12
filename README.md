@@ -22,22 +22,13 @@ There is a carriage attached to the back of each curtain panel. A string runs th
 
 ![window opener GIF](/media/string-gif.gif)
 
-At the heart of the device is our custom PCB which uses an ESP32 and Trinamic TMC2209 stepper driver. 
-
-The motor is dead silent.
-
-If a stall occurs, the advanced TMC2209 will detect the increased back-EMF from the motor and stop it automatically, like magic.
-
-![window opener](/media/model-s-pcb.jpg)
+At the heart of the device is our custom PCB which uses an ESP32 and Trinamic TMC2209 stepper driver. The motor is dead silent.
 
 ## Will it work on your curtains?
 
-This works on backtab curtains that looks like this:
-![window opener GIF](/media/backtab-example.jpg)
+This works on the following curtains:
 
-Or with curtains with rings, like this:
-![window opener GIF](/media/curtain-rings2.jpg)
-
+![curtain-types](/media/curtain-types.jpg)
 
 ## How to build it
 
