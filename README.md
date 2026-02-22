@@ -3,7 +3,7 @@ You can purchase a hardware kit [here](https://valarsystems.com/products/morning
 
 Without the kit, it's a pain to source all the parts, and costs a lot more because you'll be forced to buy 100 screws (when you only need 2) and 100ft of rope (when you only need 30ft) at a time.
 
-![kit photo](/media/ropener_kit.jpg)
+<img src="/media/ropener_kit.jpg" width="70%" />
 
 
 # Ropener: Automated Curtain Opener
@@ -28,18 +28,20 @@ At the heart of the device is our custom PCB which uses an ESP32 and Trinamic TM
 
 This works on the following curtains:
 
-![curtain-types](/media/curtain-types.jpg)
+<img src="/media/curtain-types.jpg" width="50%" />
 
 ## How to build it
 
-The build guide can be found [here](https://www.canva.com/design/DAHAzX1956w/QnXkFw6Gx1b4t2T4kpTvWQ/view?utm_content=DAHAzX1956w&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hb3c45bcf45).
+The build guide can be found [here](https://youtu.be/uowt6jLxNso).
+
+The installation guide can be found [here](https://youtu.be/p8078ezLZHw).
 
 We've created a hardware kit that includes everything. If you source the parts individually, it will cost 5X more just because all of the hardware need to purchased in bulk from places like McMaster-Carr. You may optionally 3D print your parts.
 
 * Total print time: ~12 hours (You can also purchase the 3D prints)
 * Total assembly time: ~20 minutes
 
-[Link to kit](https://valarsystems.com/products/morningrope)
+[Link to kit](https://valarsystems.com/products/ropener)
 
 
 ## How to 3D print it
