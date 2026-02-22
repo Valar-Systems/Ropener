@@ -3,7 +3,7 @@ You can purchase a hardware kit [here](https://valarsystems.com/products/morning
 
 Without the kit, it's a pain to source all the parts, and costs a lot more because you'll be forced to buy 100 screws (when you only need 2) and 100ft of rope (when you only need 30ft) at a time.
 
-![kit photo](/media/ropener_kit.jpg)
+<img src="/media/ropener_kit.jpg" width="70%" />
 
 
 # Ropener: Automated Curtain Opener
@@ -28,7 +28,7 @@ At the heart of the device is our custom PCB which uses an ESP32 and Trinamic TM
 
 This works on the following curtains:
 
-![curtain-types](/media/curtain-types.jpg)
+<img src="/media/curtain-types.jpg" width="50%" />
 
 ## How to build it
 
