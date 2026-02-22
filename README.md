@@ -32,14 +32,16 @@ This works on the following curtains:
 
 ## How to build it
 
-The build guide can be found [here](https://www.canva.com/design/DAHAzX1956w/QnXkFw6Gx1b4t2T4kpTvWQ/view?utm_content=DAHAzX1956w&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hb3c45bcf45).
+The build guide can be found [here](https://youtu.be/uowt6jLxNso).
+
+The installation guide can be found [here](https://youtu.be/p8078ezLZHw).
 
 We've created a hardware kit that includes everything. If you source the parts individually, it will cost 5X more just because all of the hardware need to purchased in bulk from places like McMaster-Carr. You may optionally 3D print your parts.
 
 * Total print time: ~12 hours (You can also purchase the 3D prints)
 * Total assembly time: ~20 minutes
 
-[Link to kit](https://valarsystems.com/products/morningrope)
+[Link to kit](https://valarsystems.com/products/ropener)
 
 
 ## How to 3D print it
