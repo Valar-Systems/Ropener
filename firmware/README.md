@@ -1,7 +1,11 @@
-# Firmware Guide
+# ESPHome YAML
 
-There are multiple firmwares to choose from.
+Update the two variables:
+1. Distance: In centimeters
+2. Direction of travel: Enter "cw" or "ccw" to change opening direction
 
-ESPHome is the recommended way. 
+The Matter-Compatible firmware reverses the 100% and 0% direction, so the cover matches the Matter standard.
 
-If you want to connect the device with Alexa, Apple, or Google, use the [Matterbridge](https://github.com/Luligu/matterbridge-hass) app for Home Assistant.
+In Home Assistant, 0 percent is closed, and 100 percent is open. But in Matter, it's the opposite. 100 is closed and 0 is open.
+
+If using the Matterbridge plugin, use the Matter-Compatible version, this way Apple Home, Google Home, and Alexa all open/close the device correctly.
