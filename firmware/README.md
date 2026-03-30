@@ -1,11 +1,11 @@
 # ESPHome YAML
 
-Update the two variables:
-1. Distance: In centimeters
-2. Direction of travel: Enter "cw" or "ccw" to change opening direction
+Do not change any of the values in the YAML other than the ESPHome name.
 
-The Matter-Compatible firmware reverses the 100% and 0% direction, so the cover matches the Matter standard.
+The device can be configured in Home Assistant after adding the device to your devices.
 
-In Home Assistant, 0 percent is closed, and 100 percent is open. But in Matter, it's the opposite. 100 is closed and 0 is open.
+Under Configuration settings in Home Assistant, change the Centimeters parameter to the distance your curtain needs to open.
 
-If using the Matterbridge plugin, use the Matter-Compatible version, this way Apple Home, Google Home, and Alexa all open/close the device correctly.
+Additionally, you can change the motor direction, acceleration, speed, current (IRUN), and StallGuard values.
+
+Better documentation is coming soon. Please email daniel@valarsystems.com for any questions.
