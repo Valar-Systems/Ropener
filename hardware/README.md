@@ -1,6 +1,6 @@
 # Instructions
-Image build guide can be found [here](https://canva.link/tmpoyau5pfkddx3).
-Video build guide can be found [here](https://youtu.be/uowt6jLxNso).
+Image build guide can be found [here](https://canva.link/tmpoyau5pfkddx3).\
+Video build guide can be found [here](https://youtu.be/uowt6jLxNso).\
 Video installation guide can be found [here](https://youtu.be/p8078ezLZHw).
 
 # Parts
