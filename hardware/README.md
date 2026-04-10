@@ -4,7 +4,8 @@ Video build guide can be found [here](https://youtu.be/uowt6jLxNso).\
 Video installation guide can be found [here](https://youtu.be/p8078ezLZHw).
 
 # Parts
-It's best to buy a kit here that includes all of these parts. But you can also source the parts yourself if needed.
+You can purchase a kit [here](https://valarsystems.com/products/ropener) that includes all of these parts.\
+Or you can source the parts below.
 
 | Item  | Quantity|
 | --------|-------|
