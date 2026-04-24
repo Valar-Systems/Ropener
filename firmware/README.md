@@ -7,5 +7,3 @@ The device can be configured in Home Assistant after adding the device to your d
 Under Configuration settings in Home Assistant, change the Centimeters parameter to the distance your curtain needs to open.
 
 Additionally, you can change the motor direction, acceleration, speed, current (IRUN), and StallGuard values.
-
-Better documentation is coming soon. Please email daniel@valarsystems.com for any questions.
