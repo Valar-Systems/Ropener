@@ -1,82 +1,221 @@
+# =============================================================================
+# Ropener — ESPHome firmware (Living Room unit)
+# =============================================================================
+#
+# A Wi-Fi connected curtain/cover controller that pulls a beaded rope using a
+# TMC2209-driven stepper motor on an ESP32-C3. The cover exposes itself to
+# Home Assistant over the native ESPHome API and supports a 0..1 position
+# (closed..open), StallGuard-based auto-homing, and tunable motion/sensorless
+# homing parameters from the HA UI.
+#
+# -----------------------------------------------------------------------------
+# Hardware
+# -----------------------------------------------------------------------------
+#   MCU     : ESP32-C3 (esp32-c3-devkitm-1, esp-idf framework)
+#   Driver  : TMC2209 stepper driver, single-wire UART control (PDN_UART)
+#   Motor   : NEMA-17 stepper, 200 full steps/rev, 8x microstepping = 1600 steps/rev
+#   Gearing : MK7 drive gear, ~3.7699 cm of rope per revolution
+#
+# -----------------------------------------------------------------------------
+# GPIO wiring (ESP32-C3 -> TMC2209 / buttons)
+# -----------------------------------------------------------------------------
+#   GPIO0 : INDEX  (TMC2209 step-counter output, informational)
+#   GPIO1 : DIAG   (TMC2209 StallGuard / diagnostic output -> on_stall)
+#   GPIO3 : Button 2  (open),         active-low pushbutton to GND
+#   GPIO4 : Button 1  (close / home), active-low pushbutton to GND
+#   GPIO5 : UART RX  <- TMC2209 PDN_UART
+#   GPIO6 : UART TX  -> TMC2209 PDN_UART
+#   GPIO8 : ENN    (TMC2209 enable, active-low)
+#
+# -----------------------------------------------------------------------------
+# Position / motion model
+# -----------------------------------------------------------------------------
+#   Steps are the canonical position unit. Cover position is derived live:
+#
+#       position = current_position / global_distance_steps      (0.0 .. 1.0)
+#
+#   where:
+#       global_distance_steps = (distance_cm / gear_distance_cm) * steps_per_revolution
+#
+#   Defaults give a 30 cm travel window:
+#       30 cm / 3.7699 cm/rev * 1600 steps/rev ≈ 12,732 steps
+#
+#   Position 0 = fully closed (rope home, located by StallGuard).
+#   Position 1 = fully open   (target = global_distance_steps).
+#
+# -----------------------------------------------------------------------------
+# Homing
+# -----------------------------------------------------------------------------
+#   The closed end is found by sensorless StallGuard: the motor drives toward
+#   the closed direction until SG_RESULT drops below SGTHRS while the motor is
+#   running below TCOOLTHRS, which fires DIAG and triggers the stepper's
+#   on_stall handler. That handler stops the motor and zeroes the position.
+#
+#   Manual re-home:
+#     - Long-press (3-10 s) Button 1, OR
+#     - Press the "Start/Close" diagnostic button (drives toward stall), then
+#       confirm with "Stop/Set 0 Position".
+#
+# -----------------------------------------------------------------------------
+# Buttons (physical, on the device)
+# -----------------------------------------------------------------------------
+#   Button 1 (GPIO4):
+#     - Short press (50 ms - 1 s)   : close cover
+#     - Long  press (3 s - 10 s)    : zero position + set target 0 (re-home)
+#   Button 2 (GPIO3):
+#     - Release                     : open cover
+#
+# -----------------------------------------------------------------------------
+# Required secrets (secrets.yaml)
+# -----------------------------------------------------------------------------
+#   wifi_ssid, wifi_password : Wi-Fi credentials
+#   api_key                  : ESPHome native-API encryption key
+# =============================================================================
+
+# External TMC2209 component family by @slimcdk. Provides UART register access,
+# StallGuard configuration, and the tmc2209 stepper platform used below.
 external_components:
   - source: github://slimcdk/esphome-custom-components
     components: [tmc2209_hub, tmc2209, stepper]
 
+# -----------------------------------------------------------------------------
+# Persistent state
+# -----------------------------------------------------------------------------
+# All globals use restore_value so settings survive reboots. They are mirrored
+# by `number` / `switch` entities further down — editing in Home Assistant
+# updates the global AND pushes the value to the appropriate TMC2209 register.
 globals:
+  # Motor run current (TMC2209 IRUN field, 0-31). Higher = more torque + heat.
+  # 25 is a moderate setting; reduce if the driver overheats or skips cooldown.
   - id: global_irun
     type: int
     restore_value: yes
     initial_value: '25'
+
+  # Stepper target speed (steps/second). Capped by stepper.max_speed below.
   - id: global_speed
     type: int
     restore_value: yes
     initial_value: '1500'
+
+  # Stepper acceleration (steps/s^2). Used at both ramp-up and ramp-down.
   - id: global_acceleration
     type: int
     restore_value: yes
     initial_value: '1500'
+
+  # TCOOLTHRS — TSTEP threshold below which StallGuard / CoolStep are active
+  # (i.e., motor must be moving fast enough). Lower TCOOLTHRS = StallGuard
+  # only at higher speeds. Range 0..1048575.
   - id: global_tcoolthrs
     type: int
     restore_value: yes
     initial_value: '100'
+
+  # SGTHRS — StallGuard threshold (0..255). The motor is considered stalled
+  # when SG_RESULT < 2*SGTHRS. Higher = more sensitive (false-stalls easier).
   - id: global_sgthrs
     type: int
     restore_value: yes
     initial_value: '100'
+
+  # Configured travel distance, in centimeters of rope. Source of truth for
+  # `global_distance_steps`; recomputed whenever the user updates it.
   - id: global_distance_cm
     type: int
     restore_value: yes
     initial_value: '30'
+
+  # Configured travel distance, expressed in motor steps. Equals
+  # global_distance_revolutions * steps_per_revolution. This is the "100%"
+  # target that the cover entity uses to map position 1.0 -> step count.
   - id: global_distance_steps
     type: int
     restore_value: yes
     initial_value: '12732'
+
+  # Motor shaft direction. Persisted so the unit comes up the same way after
+  # a reboot. Toggled by the "Motor Direction" switch entity.
   - id: global_stepper_direction
     type: esphome::tmc2209::ShaftDirection
     restore_value: yes
     initial_value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE'
+
+  # Configured travel distance, expressed in motor revolutions. Intermediate
+  # value used to derive global_distance_steps; kept as a float so that
+  # fractional revolutions aren't truncated before the steps multiplication.
   - id: global_distance_revolutions
     type: float
     restore_value: yes
-    initial_value: '21.22'   
+    initial_value: '21.22'
 
+# -----------------------------------------------------------------------------
+# Mechanical constants
+# -----------------------------------------------------------------------------
+# These are compile-time substitutions (not runtime-tunable). Change them only
+# if the gear or microstepping changes; a new flash is required.
 substitutions:
-  gear_distance_cm: "3.7699" # Use for MK7 drive gear // The curtain will move 3.7699 cm per revolution
+  # Linear travel per motor revolution. MK7 drive gear: π * 1.2 cm pitch dia.
+  gear_distance_cm: "3.7699"
+
+  # Steps per motor revolution = 200 full steps * 8 microsteps. Must match the
+  # `microsteps:` value passed to tmc2209.configure in on_boot.
   steps_per_revolution: "1600"
 
+# -----------------------------------------------------------------------------
+# Native ESPHome API (Home Assistant integration)
+# -----------------------------------------------------------------------------
+# Encryption key is required by recent ESPHome; HA will prompt for it on first
+# pairing. Generate with: `esphome wizard` or any 32-byte base64 string.
 api:
   encryption:
     key: !secret api_key
 
+# Over-the-air firmware updates via the ESPHome platform.
 ota:
   - platform: esphome
 
+# Default UART logger. Add `level: DEBUG` here when troubleshooting StallGuard.
 logger:
 
+# -----------------------------------------------------------------------------
+# Board / Wi-Fi
+# -----------------------------------------------------------------------------
 esp32:
   board: esp32-c3-devkitm-1
   framework:
     type: esp-idf
 
+# Credentials live in secrets.yaml. There is intentionally no captive-portal
+# fallback; if Wi-Fi creds change you'll need to reflash via USB.
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+# -----------------------------------------------------------------------------
+# Device identity + boot-time motor configuration
+# -----------------------------------------------------------------------------
+# on_boot restores the persisted globals into the TMC2209 driver and stepper
+# component every power cycle. Order matters:
+#   1. configure direction + microstepping + TCOOLTHRS
+#   2. arm StallGuard at the saved SGTHRS
+#   3. apply currents (IRUN, freewheel-on-idle so the rope can hand-pull)
+#   4. apply speed and acceleration
 esphome:
   name: ropener-living-room
   friendly_name: "Ropener Living Room"
   on_boot:
     - tmc2209.configure:
         direction: !lambda return id(global_stepper_direction);
-        microsteps: 8
-        interpolation: true
+        microsteps: 8                                          # must match steps_per_revolution
+        interpolation: true                                    # smoother motion (256-microstep interp)
         tcool_threshold: !lambda "return id(global_tcoolthrs);"
     - tmc2209.stallguard:
         threshold: !lambda "return id(global_sgthrs);"
     - tmc2209.currents:
-        standstill_mode: freewheeling
-        irun: !lambda "return id(global_irun);" #global variable
-        ihold: 0
+        standstill_mode: freewheeling                          # release motor when idle (manual-pull friendly)
+        irun: !lambda "return id(global_irun);"
+        ihold: 0                                               # no holding current (combined with freewheel)
         tpowerdown: 0
         iholddelay: 0
     - stepper.set_speed:
@@ -86,71 +225,111 @@ esphome:
         id: driver
         acceleration: !lambda "return id(global_acceleration);"
 
+# -----------------------------------------------------------------------------
+# UART to TMC2209 (PDN_UART, single-wire)
+# -----------------------------------------------------------------------------
+# 500 kbaud is well within the TMC2209's tolerance and gives quick register
+# round-trips for the 1 s polled diagnostic sensors.
 uart:
   tx_pin: 6
   rx_pin: 5
   baud_rate: 500000
 
+# -----------------------------------------------------------------------------
+# Stepper driver
+# -----------------------------------------------------------------------------
+# rsense 100 mOhm + vsense=false matches the BIGTREETECH TMC2209 v3 module.
+# Adjust rsense if your board uses a different sense resistor (often 110 mOhm).
+# The on_stall handler implements sensorless homing: when StallGuard fires we
+# stop the motor and treat the current position as 0 (closed end).
 stepper:
   - platform: tmc2209
     id: driver
-    max_speed: 2000 steps/s # Faster speed is louder
-    acceleration: 2000 steps/s^2
-    deceleration: 3000 steps/s^2
-    config_dump_include_registers: true
+    max_speed: 2000 steps/s                # ceiling enforced by the stepper component (faster = louder)
+    acceleration: 2000 steps/s^2           # default acceleration (overridden at boot from global_acceleration)
+    deceleration: 3000 steps/s^2           # asymmetric: brake faster than we ramp up
+    config_dump_include_registers: true    # dump TMC2209 registers in the boot log for debugging
     rsense: 100 mOhm
     vsense: False
-    enn_pin: 8
-    index_pin: 0
-    diag_pin: 1
+    enn_pin: 8                             # active-low driver enable
+    index_pin: 0                           # step-counter feedback (unused but wired)
+    diag_pin: 1                            # StallGuard / fault output -> on_stall
     on_stall:
-      - stepper.stop: driver
-      - stepper.report_position:
+      - stepper.stop: driver               # halt motion immediately
+      - stepper.report_position:           # treat the stall point as the closed end
           id: driver
           position: 0
       - logger.log: "Homed cover"
 
+# -----------------------------------------------------------------------------
+# Physical buttons
+# -----------------------------------------------------------------------------
+# Both buttons are wired to GND through their pin (active-low) and use a 10 ms
+# debounce filter. Button 1 is overloaded: a quick tap closes, a long hold
+# re-homes. The two on_click ranges are mutually exclusive so the close action
+# never fires alongside the home action.
 binary_sensor:
- - platform: gpio
-   name: Button 1
-   id: btn1
-   pin:
-     number: 4
-     mode: INPUT
-     inverted: true
-   filters:
-     - delayed_on: 10ms
-   on_click:
-     - min_length: 50ms
-       max_length: 1000ms
-       then:
-         - cover.close: ropener_cover
-     - min_length: 3000ms
-       max_length: 10000ms
-       then:
-         - stepper.report_position:
-             id: driver
-             position: 0
-         - stepper.set_target:
-             id: driver
-             target: 0
-         - logger.log: "Homed cover"
+  - platform: gpio
+    name: Button 1
+    id: btn1
+    pin:
+      number: 4
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on: 10ms
+    on_click:
+      # Short tap: close the cover.
+      - min_length: 50ms
+        max_length: 1000ms
+        then:
+          - cover.close: ropener_cover
+      # Long press (3-10 s): zero the position and command target 0.
+      # Useful when you've manually nudged the rope and want to re-establish
+      # the closed origin without driving into a stall.
+      - min_length: 3000ms
+        max_length: 10000ms
+        then:
+          - stepper.report_position:
+              id: driver
+              position: 0
+          - stepper.set_target:
+              id: driver
+              target: 0
+          - logger.log: "Homed cover"
 
-# Add double click that closes the curtain until it stalls, or the button is pressed.
+  # TODO: add a double-click that drives toward the closed direction until the
+  # rope stalls (or the button is pressed again to abort).
 
- - platform: gpio
-   name: Button 2
-   id: btn2
-   pin:
-     number: 3
-     mode: INPUT
-     inverted: true
-   filters:
-     - delayed_on: 10ms
-   on_release:
-    then:
-     - cover.open: ropener_cover
+  - platform: gpio
+    name: Button 2
+    id: btn2
+    pin:
+      number: 3
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on: 10ms
+    on_release:
+      then:
+        - cover.open: ropener_cover
 
+# -----------------------------------------------------------------------------
+# The cover entity (Home Assistant)
+# -----------------------------------------------------------------------------
+# Template cover backed by the TMC2209 stepper. Position is reported live as a
+# 0..1 ratio of current_position / global_distance_steps.
+#   - open_action     : drive to the configured travel limit (position 1.0)
+#   - close_action    : drive to step 0 (position 0.0; closed end)
+#   - position_action : drive to an arbitrary fraction set from HA
+#   - stop_action     : halt without changing the target
+#
+# NOTE: on_opening / on_opened / on_closing / on_closed never fire today
+# because nothing publishes a `current_operation` change — the stepper has no
+# notion of "moving toward open" vs "moving toward close". To make these
+# work, publish the appropriate current_operation from open_action /
+# close_action / stop_action above, then have something flip it back to IDLE
+# when the target is reached.
 cover:
   - platform: template
     id: ropener_cover
@@ -169,33 +348,42 @@ cover:
           id: driver
           target: 0
     position_action:
+      # `pos` is the 0..1 target from HA. We map it onto the configured
+      # step range to get an absolute step target for the stepper.
       - stepper.set_target:
           id: driver
           target: !lambda return pos * id(global_distance_steps);
-    
-    #These don't actually work. But they should   
+
+    # The four triggers below currently only log; the cover.template.publish
+    # calls are no-ops here because they re-publish the same current_operation
+    # that triggered the event. Left in as scaffolding for future state work.
     on_opening:
       - logger.log: "COVER Opening"
       - cover.template.publish:
           id: ropener_cover
-          current_operation : OPENING
+          current_operation: OPENING
     on_opened:
       - logger.log: "COVER Open"
       - cover.template.publish:
           id: ropener_cover
-          current_operation : IDLE
+          current_operation: IDLE
     on_closing:
       - logger.log: "COVER Closing"
       - cover.template.publish:
           id: ropener_cover
-          current_operation : CLOSING
+          current_operation: CLOSING
     on_closed:
       - logger.log: "COVER Closed"
       - cover.template.publish:
           id: ropener_cover
-          current_operation : IDLE   
+          current_operation: IDLE
 
+# -----------------------------------------------------------------------------
+# Diagnostic / homing buttons (exposed in HA under Diagnostic)
+# -----------------------------------------------------------------------------
 button:
+  # Emergency stop + treat the current position as fully closed. Use this when
+  # the rope was hand-pulled or stalled and you want to lock in step 0 here.
   - platform: template
     name: "Stop/Set 0 Position"
     entity_category: DIAGNOSTIC
@@ -208,6 +396,10 @@ button:
           id: driver
           target: 0
 
+  # Drive far in the closing direction so StallGuard can locate the closed
+  # end. The on_stall handler on the stepper will catch the impact and zero
+  # the position. -100000 is just a "go forever" sentinel; pick a target
+  # well past the longest possible rope travel.
   - platform: template
     name: "Start/Close"
     entity_category: DIAGNOSTIC
@@ -217,45 +409,55 @@ button:
           position: 0
       - stepper.set_target:
           id: driver
-          target: -100000 #move in the closing direction
+          target: -100000
 
-# Preset speeds with working Stall Values
-# Still a work in progess. Defaul values need to be figured out. These values are only placeholders for now.
-# The goal is to create 3 different speeds, SLOW, MEDIUM, and FAST. And to add values that work with stallguard.
-# This will allow the user to press the button in Home Assistant and set the values.     
+  # ---------------------------------------------------------------------------
+  # Speed presets (WIP — values are placeholders)
+  # ---------------------------------------------------------------------------
+  # The intent is to ship SLOW / MEDIUM / FAST presets that bundle a matching
+  # acceleration + speed + StallGuard threshold + TCOOLTHRS, since the SGTHRS
+  # that detects a stall reliably depends on the motor's actual TSTEP.
+  # Until the values are dialed in, only "Preset Slow" exists and its values
+  # are placeholders that need real-world tuning.
   - platform: template
     name: "Preset Slow"
     entity_category: DIAGNOSTIC
     on_press:
       - globals.set:
           id: global_acceleration
-          value: "1500" #UPDATE THIS
+          value: "1500"                              # TODO: tune
       - stepper.set_acceleration:
           id: driver
           acceleration: !lambda "return id(global_acceleration);"
 
       - globals.set:
           id: global_speed
-          value: "2000" #UPDATE THIS
+          value: "2000"                              # TODO: tune
       - stepper.set_speed:
           id: driver
           speed: !lambda "return id(global_speed);"
 
       - globals.set:
           id: global_sgthrs
-          value: "50" #UPDATE THIS
+          value: "50"                                # TODO: tune
       - lambda: id(driver)->write_register(SGTHRS, id(global_sgthrs));
 
       - globals.set:
           id: global_tcoolthrs
-          value: "200" #UPDATE THIS
+          value: "200"                               # TODO: tune
       - lambda: id(driver)->write_register(TCOOLTHRS, id(global_tcoolthrs));
 
-# ADD PRESET MEDIUM
-# ADD PRESET FAST
+  # TODO: add "Preset Medium" and "Preset Fast" once SGTHRS values are tuned.
 
-
-
+# -----------------------------------------------------------------------------
+# Configuration switches
+# -----------------------------------------------------------------------------
+# Motor Direction: flips the shaft direction so the same close/open commands
+# wind the rope the right way regardless of how the motor was mounted.
+#   OFF -> CLOCKWISE
+#   ON  -> COUNTERCLOCKWISE
+# `optimistic: true` is fine here because the action is idempotent and we
+# persist the truth in `global_stepper_direction`.
 switch:
   - platform: template
     name: "Motor Direction"
@@ -273,9 +475,20 @@ switch:
           value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE'
       - tmc2209.configure:
           direction: !lambda return id(global_stepper_direction);
-          
+
+
+# -----------------------------------------------------------------------------
+# Tunable number entities
+# -----------------------------------------------------------------------------
+# Each entity below is bound to a global and pushes its value into the driver
+# whenever the user changes it from Home Assistant. The `lambda` reads the
+# value back live (every `update_interval`) so the HA UI reflects the actual
+# state, not just the last value we wrote.
 number:
-# SET distance
+  # Travel distance in centimeters. Recomputes both global_distance_revolutions
+  # and global_distance_steps so the cover entity remaps its 0..1 position
+  # range to the new step count.
+  #   distance_steps = (cm / gear_distance_cm) * steps_per_revolution
   - platform: template
     name: "Centimeters"
     step: 1
@@ -285,7 +498,7 @@ number:
     entity_category: CONFIG
     lambda: return id(global_distance_cm);
     update_interval: 1s
-    set_action: 
+    set_action:
       then:
         - globals.set:
             id: global_distance_cm
@@ -297,8 +510,8 @@ number:
             id: global_distance_steps
             value: !lambda "return id(global_distance_revolutions)*${steps_per_revolution};"
 
-
-# SET acceleration
+  # Stepper acceleration (steps/s^2). Higher = snappier, but more chance of
+  # missed steps and audible noise.
   - platform: template
     name: "Acceleration"
     step: 100
@@ -308,7 +521,7 @@ number:
     entity_category: CONFIG
     lambda: return id(global_acceleration);
     update_interval: 1s
-    set_action: 
+    set_action:
       then:
         - globals.set:
             id: global_acceleration
@@ -317,7 +530,7 @@ number:
             id: driver
             acceleration: !lambda "return id(global_acceleration);"
 
-# SET max_speed
+  # Cruise speed (steps/s). Hard-capped by the stepper's max_speed (2000).
   - platform: template
     name: "Speed"
     step: 100
@@ -327,7 +540,7 @@ number:
     entity_category: CONFIG
     lambda: return id(global_speed);
     update_interval: 1s
-    set_action: 
+    set_action:
       then:
         - globals.set:
             id: global_speed
@@ -336,7 +549,8 @@ number:
             id: driver
             speed: !lambda "return id(global_speed);"
 
-# SET irun
+  # IRUN — TMC2209 run-current setting (1..31). Reads back the live IRUN
+  # field, not the cached global, so any external change is reflected.
   - platform: template
     name: "IRUN value"
     step: 1
@@ -346,7 +560,7 @@ number:
     entity_category: CONFIG
     lambda: return id(driver)->read_field(IRUN_FIELD);
     update_interval: 1s
-    set_action: 
+    set_action:
       then:
         - globals.set:
             id: global_irun
@@ -354,7 +568,8 @@ number:
         - tmc2209.currents:
             irun: !lambda "return id(global_irun);"
 
-# SET TCOOLTHRS
+  # TCOOLTHRS — TSTEP threshold below which CoolStep / StallGuard are valid
+  # (motor must be moving at least this fast). 20 bits, 0..1,048,575.
   - platform: template
     name: "TCOOLTHRS value"
     step: 1
@@ -364,14 +579,16 @@ number:
     entity_category: CONFIG
     lambda: return id(driver)->read_register(TCOOLTHRS);
     update_interval: 1s
-    set_action: 
+    set_action:
       then:
         - globals.set:
             id: global_tcoolthrs
             value: !lambda "return x;"
         - lambda: id(driver)->write_register(TCOOLTHRS, x);
 
-# SET SGTHRS
+  # SGTHRS — StallGuard sensitivity (0..255). The driver flags a stall when
+  # SG_RESULT < 2*SGTHRS while TSTEP < TCOOLTHRS. Tune by watching the
+  # SG_RESULT sensor while moving.
   - platform: template
     name: "SGTHRS value"
     step: 1
@@ -381,21 +598,30 @@ number:
     entity_category: CONFIG
     lambda: return id(driver)->read_register(SGTHRS);
     update_interval: 1s
-    set_action: 
+    set_action:
       then:
         - globals.set:
             id: global_sgthrs
             value: !lambda "return x;"
         - lambda: id(driver)->write_register(SGTHRS, x);
 
-# Display using sensor
+# -----------------------------------------------------------------------------
+# Diagnostic sensors (live TMC2209 register readouts)
+# -----------------------------------------------------------------------------
+# Useful for tuning StallGuard thresholds: drive the motor under expected
+# load, watch SG_RESULT settle in HA, then set SGTHRS to ~half of that.
 sensor:
+  # TSTEP — measured time between step pulses. Smaller value = faster motion.
+  # StallGuard is only active when TSTEP < TCOOLTHRS.
   - platform: template
-    name: "TSTEP Sensor" # SHOW TSTEP
+    name: "TSTEP Sensor"
     lambda: return id(driver)->read_register(TSTEP);
     update_interval: 5s
     entity_category: DIAGNOSTIC
-  - platform: template # SHOW SG_RESULT
+
+  # SG_RESULT — StallGuard load reading. Drops as load increases; a stall is
+  # signalled when SG_RESULT < 2*SGTHRS.
+  - platform: template
     name: "SG_RESULT Sensor"
     lambda: return id(driver)->read_register(SG_RESULT);
     update_interval: 1s
