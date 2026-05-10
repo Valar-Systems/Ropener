@@ -120,20 +120,21 @@ binary_sensor:
      inverted: true
    filters:
      - delayed_on: 10ms
-   on_release:
-     then:
-       - cover.close: ropener_cover
    on_click:
-      min_length: 3000ms
-      max_length: 10000ms
-      then:
-        - stepper.report_position:
-            id: driver
-            position: 0
-        - stepper.set_target:
-            id: driver
-            target: 0
-        - logger.log: "Homed cover"
+     - min_length: 50ms
+       max_length: 1000ms
+       then:
+         - cover.close: ropener_cover
+     - min_length: 3000ms
+       max_length: 10000ms
+       then:
+         - stepper.report_position:
+             id: driver
+             position: 0
+         - stepper.set_target:
+             id: driver
+             target: 0
+         - logger.log: "Homed cover"
 
 # Add double click that closes the curtain until it stalls, or the button is pressed.
 
@@ -156,7 +157,7 @@ cover:
     name: Ropener
     has_position: true
     assumed_state: false
-    lambda: "return float(id(driver)->current_position / float(id(global_distance_steps)));"
+    lambda: "return float(id(driver)->current_position) / float(id(global_distance_steps));"
     stop_action:
       - stepper.stop: driver
     open_action:
