@@ -182,7 +182,7 @@ logger:
 # Board / Wi-Fi
 # -----------------------------------------------------------------------------
 esp32:
-  board: esp32-c3-devkitm-1
+  variant: esp32c3
   framework:
     type: esp-idf
 
@@ -202,8 +202,8 @@ wifi:
 #   3. apply currents (IRUN, freewheel-on-idle so the rope can hand-pull)
 #   4. apply speed and acceleration
 esphome:
-  name: ropener-living-room
-  friendly_name: "Ropener Living Room"
+  name: ropener-living-room                                    # change this name
+  friendly_name: "Ropener Living Room"                         # change this name
   on_boot:
     - tmc2209.configure:
         direction: !lambda return id(global_stepper_direction);
