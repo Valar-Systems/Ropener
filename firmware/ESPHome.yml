@@ -1,5 +1,5 @@
 # =============================================================================
-# Ropener — ESPHome firmware (Living Room unit)
+# Ropener — ESPHome firmware
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a beaded rope using a
@@ -238,8 +238,8 @@ uart:
 # -----------------------------------------------------------------------------
 # Stepper driver
 # -----------------------------------------------------------------------------
-# rsense 100 mOhm + vsense=false matches the BIGTREETECH TMC2209 v3 module.
-# Adjust rsense if your board uses a different sense resistor (often 110 mOhm).
+# rsense 100 mOhm + vsense=false matches the VAL3000 module.
+# Adjust rsense if your board uses a different sense resistor.
 # The on_stall handler implements sensorless homing: when StallGuard fires we
 # stop the motor and treat the current position as 0 (closed end).
 stepper:
