@@ -1,5 +1,5 @@
 ## Kits
-You can purchase a hardware kit [here](https://valarsystems.com/products/morningrope). If it's sold out, **PLEASE** sign up to the waitlist. It's the only indication we have to make more. If you don't, then we'll **NEVER** make more.
+This device was created by me, [Daniel Frenkel](https://github.com/daniel-frenkel), and I have a small US-based shop that you can purchase a [hardware kit](https://valarsystems.com/products/ropener) from. If it's sold out, **PLEASE** sign up to the waitlist. It's the only indication I have to make more. If you don't, then I'll **NEVER** make more.
 
 Without the kit, it's a pain to source all the parts, and costs a lot more because you'll be forced to buy 100 screws (when you only need 2) and 100ft of rope (when you only need 30ft) at a time.
 
