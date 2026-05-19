@@ -1,3 +1,5 @@
+![window opener GIF](/media/main-page-gif.gif)
+
 ## Kits
 This device was created by me, [Daniel Frenkel](https://github.com/daniel-frenkel), and I have a small US-based shop that you can purchase a [hardware kit](https://valarsystems.com/products/ropener) from. If it's sold out, **PLEASE** sign up to the waitlist. It's the only indication I have to make more. If you don't, then I'll **NEVER** make more.
 
