@@ -1,4 +1,7 @@
-![window opener GIF](/media/main-page-gif.gif)
+# Ropener: Automated Curtain Opener
+![window opener GIF](/media/curtain-gif-2.gif)
+
+The Ropener is a smart curtain opener that uses two buttons and ESPHome to open and close your curtain. Combine it with Node-RED, Home Assistant (via ESPhome) to get your curtain to open and close automatically.
 
 ## Kits
 This device was created by me, [Daniel Frenkel](https://github.com/daniel-frenkel), and I have a small US-based shop that you can purchase a [hardware kit](https://valarsystems.com/products/ropener) from. If it's sold out, **PLEASE** sign up to the waitlist. It's the only indication I have to make more. If you don't, then I'll **NEVER** make more.
@@ -6,13 +9,6 @@ This device was created by me, [Daniel Frenkel](https://github.com/daniel-frenke
 Without the kit, it's a pain to source all the parts, and costs a lot more because you'll be forced to buy 100 screws (when you only need 2) and 100ft of rope (when you only need 30ft) at a time.
 
 <img src="/media/ropener_kit.jpg" width="70%" />
-
-
-# Ropener: Automated Curtain Opener
-
-The Ropener is a smart curtain opener that uses two buttons and HTTP requests or ESPHome to open and close your curtain. Combine it with Node-RED, Home Assistant (via ESPhome), or any other system capable of sending HTTP requests and get your curtain to open and close automatically.
-
-![window opener GIF](/media/curtain-gif.gif)
 
 ## How it works
 
