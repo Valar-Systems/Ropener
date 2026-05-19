@@ -18,7 +18,7 @@ The motor is attached to your wall just behind one of the curtains
 
 There is a carriage attached to the back of each curtain panel. A string runs through each carriage and through the motor which pulls it open and close.
 
-![window opener GIF](/media/string-gif.gif)
+![window opener GIF](/media/carriage-gif-1.gif)
 
 At the heart of the device is our custom PCB which uses an ESP32 and Trinamic TMC2209 stepper driver. The motor is dead silent.
 
@@ -36,7 +36,7 @@ The installation guide can be found [here](https://youtu.be/p8078ezLZHw).
 
 We've created a hardware kit that includes everything. If you source the parts individually, it will cost 5X more just because all of the hardware need to purchased in bulk from places like McMaster-Carr. You may optionally 3D print your parts.
 
-* Total print time: ~12 hours (You can also purchase the 3D prints)
+* Total print time: ~9 hours (You can also purchase the 3D prints)
 * Total assembly time: ~20 minutes
 
 [Link to kit](https://valarsystems.com/products/ropener)
