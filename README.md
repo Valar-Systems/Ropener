@@ -1,4 +1,7 @@
 # Ropener: Automated Curtain Opener
+
+<img src="/media/main-image-2.jpg" width="70%"/>
+
 ![window opener GIF](/media/curtain-gif-2.gif)
 
 The Ropener is a smart curtain opener that uses two buttons and ESPHome to open and close your curtain. Combine it with Node-RED, Home Assistant (via ESPhome) to get your curtain to open and close automatically.
