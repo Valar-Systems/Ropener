@@ -51,17 +51,19 @@
 #   running below TCOOLTHRS, which fires DIAG and triggers the stepper's
 #   on_stall handler. That handler stops the motor and zeroes the position.
 #
-#   Manual re-home:
+#   Manual re-home (drives motor toward closed end until StallGuard fires):
 #     - Long-press (3-10 s) Button 1, OR
-#     - Press the "Start/Close" diagnostic button (drives toward stall), then
-#       confirm with "Stop/Set 0 Position".
+#     - Press the "Start Homing" diagnostic button.
+#   Homing can be cancelled by:
+#     - Any press of Button 1 while HOMING, OR
+#     - The "Stop/Set 0 Position" diagnostic button.
 #
 # -----------------------------------------------------------------------------
 # Buttons (physical, on the device)
 # -----------------------------------------------------------------------------
 #   Button 1 (GPIO4):
-#     - Short press (50 ms - 1 s)   : close cover
-#     - Long  press (3 s - 10 s)    : zero position + set target 0 (re-home)
+#     - Short press (50 ms - 1 s)   : close cover    (or cancel HOMING)
+#     - Long  press (3 s - 10 s)    : start homing   (or cancel HOMING)
 #   Button 2 (GPIO3):
 #     - Release                     : open cover
 #
@@ -148,6 +150,20 @@ globals:
     type: float
     restore_value: yes
     initial_value: '21.22'
+
+  # Cover state machine. Not persisted — every reboot starts IDLE, since the
+  # motor is not actually moving at that point.
+  #   0 = IDLE     no motion in progress
+  #   1 = OPENING  driving toward global_distance_steps
+  #   2 = CLOSING  driving toward 0
+  #   3 = HOMING   driving toward a sentinel target, waiting for StallGuard
+  # Mirrored to HA via the "State" text_sensor. Transitions back to IDLE:
+  #   OPENING/CLOSING  -> polling interval sees current_position == target
+  #   HOMING           -> on_stall (real stall) OR any Button 1 press (cancel)
+  - id: global_state
+    type: int
+    restore_value: no
+    initial_value: '0'
 
 # -----------------------------------------------------------------------------
 # Mechanical constants
@@ -259,6 +275,15 @@ stepper:
       - stepper.report_position:           # treat the stall point as the closed end
           id: driver
           position: 0
+      - stepper.set_target:                # park target at 0 so we don't immediately retry
+          id: driver
+          target: 0
+      - globals.set:
+          id: global_state
+          value: "0"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: IDLE
       - logger.log: "Homed cover"
 
 # -----------------------------------------------------------------------------
@@ -279,27 +304,68 @@ binary_sensor:
     filters:
       - delayed_on: 10ms
     on_click:
-      # Short tap: close the cover.
+      # Short tap: cancel HOMING if active, otherwise close the cover.
       - min_length: 50ms
         max_length: 1000ms
         then:
-          - cover.close: ropener_cover
-      # Long press (3-10 s): zero the position and command target 0.
-      # Useful when you've manually nudged the rope and want to re-establish
-      # the closed origin without driving into a stall.
+          - if:
+              condition:
+                lambda: 'return id(global_state) == 3;'
+              then:
+                - stepper.stop: driver
+                - stepper.report_position:
+                    id: driver
+                    position: 0
+                - stepper.set_target:
+                    id: driver
+                    target: 0
+                - globals.set:
+                    id: global_state
+                    value: "0"
+                - cover.template.publish:
+                    id: ropener_cover
+                    current_operation: IDLE
+                - logger.log: "Homing cancelled"
+              else:
+                - cover.close: ropener_cover
+      # Long press (3-10 s): start sensorless homing — drive far in the
+      # closing direction until StallGuard fires (handled in stepper.on_stall).
+      # If already HOMING, treat the long press as a cancel.
       - min_length: 3000ms
         max_length: 10000ms
         then:
-          - stepper.report_position:
-              id: driver
-              position: 0
-          - stepper.set_target:
-              id: driver
-              target: 0
-          - logger.log: "Homed cover"
-
-  # TODO: add a double-click that drives toward the closed direction until the
-  # rope stalls (or the button is pressed again to abort).
+          - if:
+              condition:
+                lambda: 'return id(global_state) == 3;'
+              then:
+                - stepper.stop: driver
+                - stepper.report_position:
+                    id: driver
+                    position: 0
+                - stepper.set_target:
+                    id: driver
+                    target: 0
+                - globals.set:
+                    id: global_state
+                    value: "0"
+                - cover.template.publish:
+                    id: ropener_cover
+                    current_operation: IDLE
+                - logger.log: "Homing cancelled"
+              else:
+                - globals.set:
+                    id: global_state
+                    value: "3"
+                - cover.template.publish:
+                    id: ropener_cover
+                    current_operation: CLOSING
+                - stepper.report_position:
+                    id: driver
+                    position: 0
+                - stepper.set_target:
+                    id: driver
+                    target: -100000
+                - logger.log: "Starting homing"
 
   - platform: gpio
     name: Button 2
@@ -324,12 +390,10 @@ binary_sensor:
 #   - position_action : drive to an arbitrary fraction set from HA
 #   - stop_action     : halt without changing the target
 #
-# NOTE: on_opening / on_opened / on_closing / on_closed never fire today
-# because nothing publishes a `current_operation` change — the stepper has no
-# notion of "moving toward open" vs "moving toward close". To make these
-# work, publish the appropriate current_operation from open_action /
-# close_action / stop_action above, then have something flip it back to IDLE
-# when the target is reached.
+# Each motion action publishes the cover's `current_operation` (OPENING /
+# CLOSING / IDLE) so HA's on_opening / on_opened / on_closing / on_closed
+# triggers fire. The "Motion-completion poll" interval flips current_operation
+# back to IDLE once the stepper reaches its target.
 cover:
   - platform: template
     id: ropener_cover
@@ -339,44 +403,56 @@ cover:
     lambda: "return float(id(driver)->current_position) / float(id(global_distance_steps));"
     stop_action:
       - stepper.stop: driver
+      - globals.set:
+          id: global_state
+          value: "0"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: IDLE
     open_action:
+      - globals.set:
+          id: global_state
+          value: "1"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: OPENING
       - stepper.set_target:
           id: driver
           target: !lambda return id(global_distance_steps);
     close_action:
+      - globals.set:
+          id: global_state
+          value: "2"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: CLOSING
       - stepper.set_target:
           id: driver
           target: 0
     position_action:
       # `pos` is the 0..1 target from HA. We map it onto the configured
       # step range to get an absolute step target for the stepper.
+      # Direction is inferred by comparing the new target to current_position.
+      - if:
+          condition:
+            lambda: 'return (pos * id(global_distance_steps)) >= id(driver)->current_position;'
+          then:
+            - globals.set:
+                id: global_state
+                value: "1"
+            - cover.template.publish:
+                id: ropener_cover
+                current_operation: OPENING
+          else:
+            - globals.set:
+                id: global_state
+                value: "2"
+            - cover.template.publish:
+                id: ropener_cover
+                current_operation: CLOSING
       - stepper.set_target:
           id: driver
           target: !lambda return pos * id(global_distance_steps);
-
-    # The four triggers below currently only log; the cover.template.publish
-    # calls are no-ops here because they re-publish the same current_operation
-    # that triggered the event. Left in as scaffolding for future state work.
-    on_opening:
-      - logger.log: "COVER Opening"
-      - cover.template.publish:
-          id: ropener_cover
-          current_operation: OPENING
-    on_opened:
-      - logger.log: "COVER Open"
-      - cover.template.publish:
-          id: ropener_cover
-          current_operation: IDLE
-    on_closing:
-      - logger.log: "COVER Closing"
-      - cover.template.publish:
-          id: ropener_cover
-          current_operation: CLOSING
-    on_closed:
-      - logger.log: "COVER Closed"
-      - cover.template.publish:
-          id: ropener_cover
-          current_operation: IDLE
 
 # -----------------------------------------------------------------------------
 # Diagnostic / homing buttons (exposed in HA under Diagnostic)
@@ -384,6 +460,7 @@ cover:
 button:
   # Emergency stop + treat the current position as fully closed. Use this when
   # the rope was hand-pulled or stalled and you want to lock in step 0 here.
+  # Also a manual cancel for HOMING.
   - platform: template
     name: "Stop/Set 0 Position"
     entity_category: DIAGNOSTIC
@@ -395,15 +472,28 @@ button:
       - stepper.set_target:
           id: driver
           target: 0
+      - globals.set:
+          id: global_state
+          value: "0"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: IDLE
 
-  # Drive far in the closing direction so StallGuard can locate the closed
-  # end. The on_stall handler on the stepper will catch the impact and zero
-  # the position. -100000 is just a "go forever" sentinel; pick a target
-  # well past the longest possible rope travel.
+  # Begin sensorless homing: drive far in the closing direction so StallGuard
+  # can locate the closed end. The on_stall handler on the stepper will catch
+  # the impact and zero the position. -100000 is just a "go forever" sentinel;
+  # pick a target well past the longest possible rope travel.
+  # (Same effect as a long press of Button 1.)
   - platform: template
-    name: "Start/Close"
+    name: "Start Homing"
     entity_category: DIAGNOSTIC
     on_press:
+      - globals.set:
+          id: global_state
+          value: "3"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: CLOSING
       - stepper.report_position:
           id: driver
           position: 0
@@ -604,6 +694,50 @@ number:
             id: global_sgthrs
             value: !lambda "return x;"
         - lambda: id(driver)->write_register(SGTHRS, x);
+
+# -----------------------------------------------------------------------------
+# State exposure (HA)
+# -----------------------------------------------------------------------------
+# Mirrors `global_state` to Home Assistant as a string. Polled rather than
+# event-driven because state transitions happen in many places; one poll is
+# simpler than wiring publish() into every transition site.
+text_sensor:
+  - platform: template
+    name: "State"
+    id: cover_state
+    update_interval: 500ms
+    lambda: |-
+      switch (id(global_state)) {
+        case 1: return {"OPENING"};
+        case 2: return {"CLOSING"};
+        case 3: return {"HOMING"};
+        default: return {"IDLE"};
+      }
+
+# -----------------------------------------------------------------------------
+# Motion-completion poll
+# -----------------------------------------------------------------------------
+# The stepper has no "target reached" event, so we poll: if we're in
+# OPENING/CLOSING and current_position has caught up to target_position,
+# flip back to IDLE and tell the cover entity. HOMING is intentionally
+# excluded — its target (-100000) is a sentinel that's never reached;
+# HOMING ends via on_stall or a Button 1 cancel.
+interval:
+  - interval: 200ms
+    then:
+      - if:
+          condition:
+            lambda: |-
+              int s = id(global_state);
+              return (s == 1 || s == 2) &&
+                     id(driver)->current_position == id(driver)->target_position;
+          then:
+            - globals.set:
+                id: global_state
+                value: "0"
+            - cover.template.publish:
+                id: ropener_cover
+                current_operation: IDLE
 
 # -----------------------------------------------------------------------------
 # Diagnostic sensors (live TMC2209 register readouts)
