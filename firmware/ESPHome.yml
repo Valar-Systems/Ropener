@@ -61,11 +61,14 @@
 # -----------------------------------------------------------------------------
 # Buttons (physical, on the device)
 # -----------------------------------------------------------------------------
+#   Any press of either button while the cover is OPENING or CLOSING stops
+#   the motor (and leaves the position where it is).
+#
 #   Button 1 (GPIO4):
-#     - Short press (50 ms - 1 s)   : close cover    (or cancel HOMING)
-#     - Long  press (3 s - 10 s)    : start homing   (or cancel HOMING)
+#     - Short press (50 ms - 1 s)   : close cover    (or stop, or cancel HOMING)
+#     - Long  press (3 s - 10 s)    : start homing   (or stop, or cancel HOMING)
 #   Button 2 (GPIO3):
-#     - Release                     : open cover
+#     - Release                     : open cover     (or stop if moving)
 #
 # -----------------------------------------------------------------------------
 # Required secrets (secrets.yaml)
@@ -291,8 +294,10 @@ stepper:
 # -----------------------------------------------------------------------------
 # Both buttons are wired to GND through their pin (active-low) and use a 10 ms
 # debounce filter. Button 1 is overloaded: a quick tap closes, a long hold
-# re-homes. The two on_click ranges are mutually exclusive so the close action
-# never fires alongside the home action.
+# starts homing. While the cover is OPENING/CLOSING, any press of either
+# button stops the motor in place — the moving state itself overrides the
+# default open/close action. The two on_click ranges are mutually exclusive
+# so the close action never fires alongside the home action.
 binary_sensor:
   - platform: gpio
     name: Button 1
@@ -304,7 +309,10 @@ binary_sensor:
     filters:
       - delayed_on: 10ms
     on_click:
-      # Short tap: cancel HOMING if active, otherwise close the cover.
+      # Short tap:
+      #   HOMING            -> cancel homing
+      #   OPENING/CLOSING   -> stop the motor (any press stops mid-motion)
+      #   IDLE              -> close the cover
       - min_length: 50ms
         max_length: 1000ms
         then:
@@ -327,10 +335,17 @@ binary_sensor:
                     current_operation: IDLE
                 - logger.log: "Homing cancelled"
               else:
-                - cover.close: ropener_cover
-      # Long press (3-10 s): start sensorless homing — drive far in the
-      # closing direction until StallGuard fires (handled in stepper.on_stall).
-      # If already HOMING, treat the long press as a cancel.
+                - if:
+                    condition:
+                      lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
+                    then:
+                      - cover.stop: ropener_cover
+                    else:
+                      - cover.close: ropener_cover
+      # Long press (3-10 s):
+      #   HOMING            -> cancel homing
+      #   OPENING/CLOSING   -> stop the motor
+      #   IDLE              -> start sensorless homing (StallGuard locates 0)
       - min_length: 3000ms
         max_length: 10000ms
         then:
@@ -353,19 +368,25 @@ binary_sensor:
                     current_operation: IDLE
                 - logger.log: "Homing cancelled"
               else:
-                - globals.set:
-                    id: global_state
-                    value: "3"
-                - cover.template.publish:
-                    id: ropener_cover
-                    current_operation: CLOSING
-                - stepper.report_position:
-                    id: driver
-                    position: 0
-                - stepper.set_target:
-                    id: driver
-                    target: -100000
-                - logger.log: "Starting homing"
+                - if:
+                    condition:
+                      lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
+                    then:
+                      - cover.stop: ropener_cover
+                    else:
+                      - globals.set:
+                          id: global_state
+                          value: "3"
+                      - cover.template.publish:
+                          id: ropener_cover
+                          current_operation: CLOSING
+                      - stepper.report_position:
+                          id: driver
+                          position: 0
+                      - stepper.set_target:
+                          id: driver
+                          target: -100000
+                      - logger.log: "Starting homing"
 
   - platform: gpio
     name: Button 2
@@ -378,7 +399,15 @@ binary_sensor:
       - delayed_on: 10ms
     on_release:
       then:
-        - cover.open: ropener_cover
+        # OPENING/CLOSING -> stop the motor; otherwise open the cover.
+        # HOMING is intentionally not handled here (only Button 1 cancels it).
+        - if:
+            condition:
+              lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
+            then:
+              - cover.stop: ropener_cover
+            else:
+              - cover.open: ropener_cover
 
 # -----------------------------------------------------------------------------
 # The cover entity (Home Assistant)
