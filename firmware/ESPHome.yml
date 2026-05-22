@@ -56,7 +56,7 @@
 #     - Press the "Start Homing" diagnostic button.
 #   Homing can be cancelled by:
 #     - Any press of Button 1 while HOMING, OR
-#     - The "Stop/Set 0 Position" diagnostic button.
+#     - Pressing the "Start Homing" button again while HOMING.
 #
 # -----------------------------------------------------------------------------
 # Buttons (physical, on the device)
@@ -168,6 +168,14 @@ globals:
     restore_value: no
     initial_value: '0'
 
+  # Last known stepper position in steps. Persisted so the cover entity
+  # survives reboots without needing an immediate re-home. Saved every 200 ms
+  # by the motion-completion poll and restored in on_boot.
+  - id: global_current_position
+    type: int
+    restore_value: yes
+    initial_value: '0'
+
 # -----------------------------------------------------------------------------
 # Mechanical constants
 # -----------------------------------------------------------------------------
@@ -243,6 +251,12 @@ esphome:
     - stepper.set_acceleration:
         id: driver
         acceleration: !lambda "return id(global_acceleration);"
+    - stepper.report_position:             # restore last known position so HA cover is accurate
+        id: driver
+        position: !lambda "return id(global_current_position);"
+    - stepper.set_target:                  # park target at the restored position (no unwanted motion)
+        id: driver
+        target: !lambda "return id(global_current_position);"
 
 # -----------------------------------------------------------------------------
 # UART to TMC2209 (PDN_UART, single-wire)
@@ -275,19 +289,31 @@ stepper:
     diag_pin: 1                            # StallGuard / fault output -> on_stall
     on_stall:
       - stepper.stop: driver               # halt motion immediately
-      - stepper.report_position:           # treat the stall point as the closed end
-          id: driver
-          position: 0
-      - stepper.set_target:                # park target at 0 so we don't immediately retry
-          id: driver
-          target: 0
-      - globals.set:
-          id: global_state
-          value: "0"
-      - cover.template.publish:
-          id: ropener_cover
-          current_operation: IDLE
-      - logger.log: "Homed cover"
+      - if:
+          condition:
+            lambda: 'return id(global_state) == 3;'
+          then:
+            - stepper.report_position:     # treat the stall point as the closed end
+                id: driver
+                position: 0
+            - stepper.set_target:          # park target at 0 so we don't immediately retry
+                id: driver
+                target: 0
+            - globals.set:
+                id: global_state
+                value: "0"
+            - cover.template.publish:
+                id: ropener_cover
+                current_operation: IDLE
+            - logger.log: "Homed cover"
+          else:
+            - globals.set:
+                id: global_state
+                value: "0"
+            - cover.template.publish:
+                id: ropener_cover
+                current_operation: IDLE
+            - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
 
 # -----------------------------------------------------------------------------
 # Physical buttons
@@ -487,48 +513,46 @@ cover:
 # Diagnostic / homing buttons (exposed in HA under Diagnostic)
 # -----------------------------------------------------------------------------
 button:
-  # Emergency stop + treat the current position as fully closed. Use this when
-  # the rope was hand-pulled or stalled and you want to lock in step 0 here.
-  # Also a manual cancel for HOMING.
-  - platform: template
-    name: "Stop/Set 0 Position"
-    entity_category: DIAGNOSTIC
-    on_press:
-      - stepper.stop: driver
-      - stepper.report_position:
-          id: driver
-          position: 0
-      - stepper.set_target:
-          id: driver
-          target: 0
-      - globals.set:
-          id: global_state
-          value: "0"
-      - cover.template.publish:
-          id: ropener_cover
-          current_operation: IDLE
-
   # Begin sensorless homing: drive far in the closing direction so StallGuard
   # can locate the closed end. The on_stall handler on the stepper will catch
   # the impact and zero the position. -100000 is just a "go forever" sentinel;
   # pick a target well past the longest possible rope travel.
   # (Same effect as a long press of Button 1.)
+  # While HOMING, pressing this button instead stops the motor and zeroes the position.
   - platform: template
-    name: "Start Homing"
+    name: "Start/Stop Homing"
     entity_category: DIAGNOSTIC
     on_press:
-      - globals.set:
-          id: global_state
-          value: "3"
-      - cover.template.publish:
-          id: ropener_cover
-          current_operation: CLOSING
-      - stepper.report_position:
-          id: driver
-          position: 0
-      - stepper.set_target:
-          id: driver
-          target: -100000
+      - if:
+          condition:
+            lambda: 'return id(global_state) == 3;'
+          then:
+            - stepper.stop: driver
+            - stepper.report_position:
+                id: driver
+                position: 0
+            - stepper.set_target:
+                id: driver
+                target: 0
+            - globals.set:
+                id: global_state
+                value: "0"
+            - cover.template.publish:
+                id: ropener_cover
+                current_operation: IDLE
+          else:
+            - globals.set:
+                id: global_state
+                value: "3"
+            - cover.template.publish:
+                id: ropener_cover
+                current_operation: CLOSING
+            - stepper.report_position:
+                id: driver
+                position: 0
+            - stepper.set_target:
+                id: driver
+                target: -100000
 
   # ---------------------------------------------------------------------------
   # Speed presets (WIP — values are placeholders)
@@ -754,6 +778,9 @@ text_sensor:
 interval:
   - interval: 200ms
     then:
+      - globals.set:                       # persist position every tick (survives reboots)
+          id: global_current_position
+          value: !lambda "return id(driver)->current_position;"
       - if:
           condition:
             lambda: |-
