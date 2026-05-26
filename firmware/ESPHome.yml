@@ -527,7 +527,7 @@ button:
   # (Same effect as a long press of Button 1.)
   # While HOMING, pressing this button instead stops the motor and zeroes the position.
   - platform: template
-    name: "Start/Stop Homing"
+    name: "Start-Stop Homing"
     entity_category: DIAGNOSTIC
     on_press:
       - if:
