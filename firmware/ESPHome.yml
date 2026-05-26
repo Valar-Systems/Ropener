@@ -1,5 +1,6 @@
 # =============================================================================
 # Ropener — ESPHome firmware
+# Version: 2.1.0
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a beaded rope using a
@@ -231,6 +232,12 @@ wifi:
 esphome:
   name: ropener-living-room                                    # change this name
   friendly_name: "Ropener Living Room"                         # change this name
+  # Project identity + firmware version. Surfaced in Home Assistant device info
+  # and the ESPHome dashboard, and exposed over the native API so HA can tell
+  # which build is running. Bump `version` on every released change.
+  project:
+    name: "valar-systems.ropener"
+    version: "2.1.0"
   on_boot:
     - tmc2209.configure:
         direction: !lambda return id(global_stepper_direction);
