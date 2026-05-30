@@ -28,6 +28,7 @@
 #   GPIO4 : Button 1  (close / home), active-low pushbutton to GND
 #   GPIO5 : UART RX  <- TMC2209 PDN_UART
 #   GPIO6 : UART TX  -> TMC2209 PDN_UART
+#   GPIO7 : Button 3  (Wi-Fi reset),  active-low pushbutton to GND
 #   GPIO8 : ENN    (TMC2209 enable, active-low)
 #
 # -----------------------------------------------------------------------------
@@ -64,24 +65,31 @@
 # -----------------------------------------------------------------------------
 # Buttons (physical, on the device)
 # -----------------------------------------------------------------------------
-#   Any press of either button while the cover is OPENING or CLOSING stops
-#   the motor (and leaves the position where it is).
+#   Any press of Button 1 or Button 2 while the cover is OPENING or CLOSING
+#   stops the motor (and leaves the position where it is).
 #
 #   Button 1 (GPIO4):
 #     - Short press (50 ms - 1 s)   : close cover    (or stop, or cancel HOMING)
 #     - Long  press (3 s - 10 s)    : start homing   (or stop, or cancel HOMING)
 #   Button 2 (GPIO3):
 #     - Release                     : open cover     (or stop if moving)
+#   Button 3 (GPIO7):
+#     - Long  press (3 s - 10 s)    : clear saved Wi-Fi credentials + reboot
 #
 # -----------------------------------------------------------------------------
-# Required secrets (secrets.yaml)
+# Wi-Fi provisioning (no secrets required)
 # -----------------------------------------------------------------------------
-#   wifi_ssid, wifi_password : Wi-Fi credentials
+#   This firmware ships without hardcoded Wi-Fi credentials. On first boot (or
+#   after a Wi-Fi reset) connect to the "ropener-XXXXXX" hotspot and use the
+#   captive portal to enter your network — or push credentials over USB serial
+#   with Improv (e.g. web.esphome.io). Credentials are stored in flash and
+#   survive reboots and OTA updates.
+#
+#   secrets.yaml is only needed if you enable the optional native-API
+#   encryption key (api_key) — see the Home Assistant pairing note below.
 #
 # Non-HA users: open http://ropener-XXXXXX.local in a browser to
 # control the device (replace XXXXXX with the MAC suffix from the serial log).
-# If Wi-Fi credentials change, connect to the "Ropener Setup" hotspot and
-# follow the captive portal to enter new credentials.
 #
 # -----------------------------------------------------------------------------
 # Home Assistant pairing note
@@ -153,12 +161,15 @@ globals:
     restore_value: yes
     initial_value: '30'
 
-  # Configured travel distance, expressed in motor steps. Equals
-  # global_distance_revolutions * steps_per_revolution. This is the "100%"
-  # target that the cover entity uses to map position 1.0 -> step count.
+  # Configured travel distance, expressed in motor steps. Derived from
+  # global_distance_cm (the single source of truth) by the `recompute_distance`
+  # script, which runs on boot and whenever Centimeters changes — so this can
+  # never drift out of sync with cm. NOT persisted: it's a cache, not a
+  # setting. This is the "100%" target that the cover entity uses to map
+  # position 1.0 -> step count.
   - id: global_distance_steps
     type: int
-    restore_value: yes
+    restore_value: no
     initial_value: '12732'
 
   # Motor shaft direction. Persisted so the unit comes up the same way after
@@ -167,14 +178,6 @@ globals:
     type: esphome::tmc2209::ShaftDirection
     restore_value: yes
     initial_value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE'
-
-  # Configured travel distance, expressed in motor revolutions. Intermediate
-  # value used to derive global_distance_steps; kept as a float so that
-  # fractional revolutions aren't truncated before the steps multiplication.
-  - id: global_distance_revolutions
-    type: float
-    restore_value: yes
-    initial_value: '21.22'
 
   # Cover state machine. Not persisted — every reboot starts IDLE, since the
   # motor is not actually moving at that point.
@@ -197,6 +200,25 @@ globals:
     type: int
     restore_value: yes
     initial_value: '0'
+
+# -----------------------------------------------------------------------------
+# Derived-value recompute
+# -----------------------------------------------------------------------------
+# global_distance_cm is the single persisted source of truth for travel
+# distance. global_distance_steps is a derived cache; this script recomputes it
+# from cm using the formula in exactly ONE place. It is run on boot (to resync
+# the cache from the restored cm) and whenever the Centimeters number changes,
+# so the two can never drift apart.
+#   steps = (cm / gear_distance_cm) * steps_per_revolution
+# The float cast keeps fractional revolutions from being truncated before the
+# steps multiplication. The script has no delays, so script.execute runs it
+# synchronously.
+script:
+  - id: recompute_distance
+    then:
+      - globals.set:
+          id: global_distance_steps
+          value: !lambda "return (float(id(global_distance_cm)) / ${gear_distance_cm}) * ${steps_per_revolution};"
 
 # -----------------------------------------------------------------------------
 # Mechanical constants
@@ -242,14 +264,23 @@ esp32:
   framework:
     type: esp-idf
 
-# Credentials live in secrets.yaml. If the saved network is unreachable the
-# device broadcasts a "Ropener Setup" hotspot — connect to it and the captive
-# portal will let you enter new Wi-Fi credentials without a USB reflash.
+# This firmware ships WITHOUT hardcoded Wi-Fi credentials so each unit can be
+# provisioned to its owner's network — no secrets are baked into the binary.
+# On a fresh flash (or after a Wi-Fi reset) the device has no saved network and
+# comes up in setup mode: it broadcasts a "ropener-XXXXXX" hotspot (same name as
+# its mDNS hostname, where XXXXXX is the last 3 bytes of the MAC). Connect to it
+# and the captive portal lets you enter credentials; Improv over USB serial
+# works too. Credentials are saved to flash and survive reboots and OTA updates.
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  # No STA `ssid:`/`password:` here on purpose (see above): credentials come
+  # from the captive portal or Improv and are stored in flash. ESPHome keeps
+  # flash-saved credentials as long as none are set in the config file.
+  #
+  # No `ssid:` under `ap:` on purpose either: ESPHome's wifi component defaults
+  # the fallback-hotspot SSID to App.get_name(), which with name_add_mac_suffix
+  # is "ropener-XXXXXX" — unique per device and matched to the .local hostname.
+  # (See setup_ap_config_() in wifi_component.cpp.)
   ap:
-    ssid: "Ropener Setup"
 
 captive_portal:
 
@@ -278,6 +309,7 @@ esphome:
     name: "valar-systems.ropener"
     version: "2.2.0"
   on_boot:
+    - script.execute: recompute_distance     # resync derived step count from the persisted cm
     - tmc2209.configure:
         direction: !lambda return id(global_stepper_direction);
         microsteps: 8                                          # must match steps_per_revolution
@@ -481,6 +513,35 @@ binary_sensor:
             else:
               - cover.open: ropener_cover
 
+  # Button 3 (GPIO7): Wi-Fi reset.
+  # Hold 3-10 s to erase the saved Wi-Fi credentials and reboot. A long hold
+  # is required (not a quick tap) so the device can't be knocked offline by an
+  # accidental press. On reboot the device re-runs Wi-Fi setup: with no
+  # credentials saved (and none compiled into the firmware), it broadcasts the
+  # "ropener-XXXXXX" hotspot / captive portal so a new network can be entered
+  # (Improv over USB serial works too).
+  - platform: gpio
+    name: WiFi Reset
+    id: btn_wifi_reset
+    pin:
+      number: 7
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on: 10ms
+    on_click:
+      - min_length: 3000ms
+        max_length: 10000ms
+        then:
+          - logger.log: "Clearing saved Wi-Fi credentials and rebooting into setup"
+          - lambda: |-
+              // Overwrite the persisted credentials in flash with empty values,
+              // then drop the in-memory copy so nothing is re-saved on teardown.
+              esphome::wifi::global_wifi_component->save_wifi_sta("", "");
+              esphome::wifi::global_wifi_component->clear_sta();
+          - delay: 1s                          # let the log flush before we restart
+          - lambda: "App.safe_reboot();"
+
 # -----------------------------------------------------------------------------
 # The cover entity (Home Assistant)
 # -----------------------------------------------------------------------------
@@ -637,9 +698,10 @@ switch:
 # value back live (every `update_interval`) so the HA UI reflects the actual
 # state, not just the last value we wrote.
 number:
-  # Travel distance in centimeters. Recomputes both global_distance_revolutions
-  # and global_distance_steps so the cover entity remaps its 0..1 position
-  # range to the new step count.
+  # Travel distance in centimeters — the single source of truth. Updating it
+  # runs `recompute_distance`, which refreshes the derived global_distance_steps
+  # cache so the cover entity remaps its 0..1 position range to the new step
+  # count.
   #   distance_steps = (cm / gear_distance_cm) * steps_per_revolution
   - platform: template
     name: "Centimeters"
@@ -655,12 +717,7 @@ number:
         - globals.set:
             id: global_distance_cm
             value: !lambda "return x;"
-        - globals.set:
-            id: global_distance_revolutions
-            value: !lambda "return float(id(global_distance_cm))/${gear_distance_cm};"
-        - globals.set:
-            id: global_distance_steps
-            value: !lambda "return id(global_distance_revolutions)*${steps_per_revolution};"
+        - script.execute: recompute_distance
 
   # Stepper acceleration (steps/s^2). Higher = snappier, but more chance of
   # missed steps and audible noise.
