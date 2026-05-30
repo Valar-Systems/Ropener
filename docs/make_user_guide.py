@@ -4,15 +4,53 @@ Run:  python make_user_guide.py
 Output: "Ropener User Guide.docx" in this folder.
 """
 
+import os
+
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
-ACCENT = RGBColor(0x1F, 0x4E, 0x79)   # dark blue
+# Valar Systems branding (from the logo): black "VALAR" wordmark with an orange
+# "systems" script. Headings stay black for readability; orange (#F89048) is
+# the accent — divider rule, table header rows, and footer.
+ACCENT = RGBColor(0x00, 0x00, 0x00)   # brand black (headings)
+ORANGE = RGBColor(0xF8, 0x90, 0x48)   # Valar accent orange (sampled from logo)
+ORANGE_HEX = "F89048"
+GREY = RGBColor(0x59, 0x59, 0x59)     # muted grey for sub-text
 MONO = "Consolas"
+HERE = os.path.dirname(os.path.abspath(__file__))
+LOGO = os.path.join(HERE, "valar-logo-black.png")  # transparent bg, sits on white
 
 doc = Document()
+
+
+def shade_cell(cell, hex_fill):
+    """Fill a table cell with a solid background color."""
+    tcPr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), hex_fill)
+    tcPr.append(shd)
+
+
+def hrule(color_hex=ORANGE_HEX, size=18):
+    """Add a thin colored horizontal divider rule."""
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    pPr = p._p.get_or_add_pPr()
+    pbdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), str(size))
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), color_hex)
+    pbdr.append(bottom)
+    pPr.append(pbdr)
+    return p
 
 # ---- base styles -----------------------------------------------------------
 normal = doc.styles["Normal"]
@@ -34,6 +72,22 @@ def code(text):
     return p
 
 
+def callout(title, body, fill="FCE3CF"):
+    """A shaded attention box (light orange) with a bold title and body text."""
+    t = doc.add_table(rows=1, cols=1)
+    t.style = "Table Grid"
+    cell = t.rows[0].cells[0]
+    shade_cell(cell, fill)
+    cell.text = ""
+    tp = cell.paragraphs[0]
+    tr = tp.add_run(title)
+    tr.bold = True
+    tr.font.color.rgb = RGBColor(0x9C, 0x4A, 0x00)   # dark orange for contrast
+    bp = cell.add_paragraph()
+    bp.add_run(body)
+    doc.add_paragraph()
+
+
 def bullets(items, style="List Bullet"):
     for it in items:
         if isinstance(it, tuple):
@@ -47,13 +101,15 @@ def bullets(items, style="List Bullet"):
 
 def mono_table(headers, rows, widths=None):
     t = doc.add_table(rows=1, cols=len(headers))
-    t.style = "Light Grid Accent 1"
+    t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.LEFT
     hdr = t.rows[0].cells
     for i, h in enumerate(headers):
         hdr[i].text = ""
+        shade_cell(hdr[i], ORANGE_HEX)          # brand-orange header row
         run = hdr[i].paragraphs[0].add_run(h)
         run.bold = True
+        run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
     for row in rows:
         cells = t.add_row().cells
         for i, val in enumerate(row):
@@ -73,8 +129,13 @@ def mono_table(headers, rows, widths=None):
 
 
 # ============================================================================
-# TITLE
+# TITLE / BRANDING
 # ============================================================================
+logo_p = doc.add_paragraph()
+logo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+if os.path.exists(LOGO):
+    logo_p.add_run().add_picture(LOGO, width=Inches(3.2))
+
 title = doc.add_paragraph()
 title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 r = title.add_run("Ropener Curtain Controller")
@@ -85,14 +146,34 @@ r.font.color.rgb = ACCENT
 sub = doc.add_paragraph()
 sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
 r = sub.add_run("User Guide")
+r.bold = True
 r.font.size = Pt(15)
-r.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+r.font.color.rgb = ORANGE
 
 ver = doc.add_paragraph()
 ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-ver.add_run("Firmware 2.3.0").italic = True
+r = ver.add_run("Firmware 2.3.0")
+r.italic = True
+r.font.color.rgb = GREY
 
+hrule()              # orange divider under the title block
 doc.add_paragraph()
+
+# Branded footer on every page: company name + accent bullet + site.
+footer = doc.sections[0].footer
+fp = footer.paragraphs[0]
+fp.text = ""
+run = fp.add_run("Valar Systems")
+run.bold = True
+run.font.size = Pt(9)
+run.font.color.rgb = ACCENT
+bullet = fp.add_run("   •   ")
+bullet.bold = True
+bullet.font.size = Pt(9)
+bullet.font.color.rgb = ORANGE
+url = fp.add_run("valarsystems.com")
+url.font.size = Pt(9)
+url.font.color.rgb = GREY
 
 intro = doc.add_paragraph()
 intro.add_run(
@@ -130,12 +211,21 @@ bullets([
     "Power on the device and wait about a minute.",
     "On your phone or laptop, open the Wi-Fi network list. You will see a network "
     "named “ropener-XXXXXX”, where XXXXXX is a unique code for your device.",
+    "Write down or take a photo of this full name now — you will need the same "
+    "“ropener-XXXXXX” to open the device in your browser later (see Section 3). "
+    "The hotspot disappears once setup is done, so note it before continuing.",
     "Connect to it. A setup page should open automatically (this is the “captive "
     "portal”). If it does not, open a browser and go to http://192.168.4.1.",
     "Choose your home Wi-Fi network from the list, enter its password, and save.",
     "The device will reboot and join your network. The setup hotspot disappears once "
     "it connects successfully.",
 ])
+tip = doc.add_paragraph()
+tip.add_run("Remember: ").bold = True
+tip.add_run(
+    "the “ropener-XXXXXX” code is also your device's web address — you'll type "
+    "http://ropener-XXXXXX.local into a browser to control it. Keep the code "
+    "handy.")
 
 doc.add_heading("Option B — Over USB (Improv)", level=2)
 doc.add_paragraph(
@@ -208,10 +298,20 @@ mono_table(
 # 5. HOMING
 # ============================================================================
 doc.add_heading("5. Homing (Calibrating the Closed Position)", level=1)
+
+callout(
+    "Important — you must stop homing manually (automatic stop is disabled)",
+    "The sensor that normally detects the closed end (called “StallGuard”) is not "
+    "working in this version of the firmware. During homing the motor will NOT "
+    "stop by itself. You must watch the curtain and press Stop the moment it "
+    "reaches the fully-closed position. If you do not stop it, the motor will keep "
+    "running and strain against the stop. Always stay with the device while homing.",
+)
+
 doc.add_paragraph(
-    "“Homing” teaches the device exactly where the fully-closed position is. The "
-    "motor gently drives the curtain toward the closed end until it feels the rope "
-    "reach its stop, then marks that spot as 0% (closed). Everything else — open "
+    "“Homing” teaches the device where the fully-closed position is. The motor "
+    "drives the curtain toward the closed end; when it arrives, you stop it, and "
+    "the device marks that spot as 0% (closed). Everything else — the open "
     "position, percentages, and the schedule — is measured from there."
 )
 doc.add_paragraph("Run homing when:")
@@ -220,19 +320,18 @@ bullets([
     "The reported position no longer matches reality (for example after the rope "
     "slipped or was pulled by hand).",
 ])
-doc.add_heading("How to start homing", level=2)
+doc.add_heading("How to home (stop it yourself)", level=2)
 bullets([
-    "Press and hold Button 1 for 3 to 10 seconds, or",
-    "Click the “Start-Stop Homing” button on the web page.",
-])
-doc.add_heading("How to stop or cancel homing", level=2)
-bullets([
-    "Press Button 1 again, or",
-    "Click “Start-Stop Homing” again.",
-])
+    "Start homing: press and hold Button 1 for 3 to 10 seconds, or click the "
+    "“Start-Stop Homing” button on the web page.",
+    "Watch the curtain drive toward the closed end.",
+    "The instant it reaches the fully-closed position, press Stop — press Button 1 "
+    "once, or click “Start-Stop Homing” again. This marks that spot as 0% (closed) "
+    "and ends homing.",
+], style="List Number")
 doc.add_paragraph(
-    "The “State” reading on the web page shows HOMING while calibration is in "
-    "progress and returns to IDLE when finished."
+    "The “State” reading on the web page shows HOMING while homing is running and "
+    "returns to IDLE once you press Stop."
 )
 
 # ============================================================================
@@ -399,8 +498,16 @@ mono_table(
 )
 
 doc.add_heading("Tuning stall-based homing (optional)", level=2)
+note = doc.add_paragraph()
+note.add_run("Note: ").bold = True
+note.add_run(
+    "automatic stall detection is not working in the current firmware, so the "
+    "SGTHRS / TCOOLTHRS settings have no effect yet — home manually by pressing "
+    "Stop at the closed position (see Section 5). The guidance below applies once "
+    "automatic detection is restored."
+)
 doc.add_paragraph(
-    "Homing works by detecting when the motor meets resistance at the closed end. "
+    "Homing is meant to detect when the motor meets resistance at the closed end. "
     "Two readings on the web page help you tune it:"
 )
 bullets([
@@ -452,8 +559,9 @@ mono_table(
          "Check the Timezone value (Section 7/8) and that the device has internet for time sync."],
         ["Schedule doesn't run",
          "Confirm “Schedule Enabled” is ON and that Open/Close times are set."],
-        ["Homing stops too early or not at all",
-         "Adjust SGTHRS (Section 10, tuning note)."],
+        ["Homing motor doesn't stop on its own",
+         "Expected in this version — automatic stop (StallGuard) is disabled. Press Stop "
+         "when the curtain reaches the closed position (Section 5)."],
         ["Motor driver gets hot",
          "Lower the IRUN value."],
     ],
