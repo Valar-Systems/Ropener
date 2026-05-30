@@ -1,6 +1,6 @@
 # =============================================================================
 # Ropener — ESPHome firmware
-# Version: 2.2.0
+# Version: 2.3.0
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a beaded rope using a
@@ -75,6 +75,17 @@
 #     - Release                     : open cover     (or stop if moving)
 #   Button 3 (GPIO7):
 #     - Long  press (3 s - 10 s)    : clear saved Wi-Fi credentials + reboot
+#
+# -----------------------------------------------------------------------------
+# Daily schedule (browser-editable, no Home Assistant required)
+# -----------------------------------------------------------------------------
+#   Open the web UI and set:
+#     - "Open Time"  / "Close Time" : daily times to open / close the cover
+#     - "Schedule Enabled"          : master on/off for the schedule
+#     - "Timezone"                  : POSIX TZ string for your region
+#   With the schedule enabled, the cover opens at Open Time and closes at Close
+#   Time every day (skipped while homing). All four settings persist across
+#   reboots. Requires the device to have a network connection for SNTP time.
 #
 # -----------------------------------------------------------------------------
 # Wi-Fi provisioning (no secrets required)
@@ -290,6 +301,20 @@ captive_portal:
 improv_serial:
 
 # -----------------------------------------------------------------------------
+# Time source (drives the open/close schedule)
+# -----------------------------------------------------------------------------
+# SNTP keeps the clock synced over the network. SNTP time is UTC; the local
+# time the schedule fires on is derived from the timezone. We pin a deterministic
+# "UTC0" default here (rather than letting ESPHome bake in the build machine's
+# timezone) so every shipped unit behaves identically — each user then sets
+# their own zone at runtime via the "Timezone" text entity, no reflash needed.
+# Setting `timezone:` also enables USE_TIME_TIMEZONE so set_timezone() compiles.
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: "UTC0"
+
+# -----------------------------------------------------------------------------
 # Device identity + boot-time motor configuration
 # -----------------------------------------------------------------------------
 # on_boot restores the persisted globals into the TMC2209 driver and stepper
@@ -307,7 +332,7 @@ esphome:
   # which build is running. Bump `version` on every released change.
   project:
     name: "valar-systems.ropener"
-    version: "2.2.0"
+    version: "2.3.0"
   on_boot:
     - script.execute: recompute_distance     # resync derived step count from the persisted cm
     - tmc2209.configure:
@@ -335,6 +360,13 @@ esphome:
     - stepper.set_target:                  # park target at the restored position (no unwanted motion)
         id: driver
         target: !lambda "return id(global_current_position);"
+    - lambda: |-
+        // Re-apply the timezone the user picked in the browser. The Timezone
+        // text entity restores its saved value during setup, but restoring a
+        // value does not re-fire its set_action, so we push it into the clock
+        // here on boot. (Runs after component setup, like the stepper restore
+        // above, which also relies on restored state.)
+        id(sntp_time)->set_timezone(id(tz_text)->state);
 
 # -----------------------------------------------------------------------------
 # UART to TMC2209 (PDN_UART, single-wire)
@@ -688,6 +720,87 @@ switch:
           value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE'
       - tmc2209.configure:
           direction: !lambda return id(global_stepper_direction);
+
+  # Schedule Enabled: master on/off for the daily open/close schedule below.
+  # When OFF, the "Open Time"/"Close Time" triggers do nothing. `optimistic`
+  # stores the state locally; `restore_mode` brings it back after a reboot
+  # (default OFF so a fresh unit never moves the cover unattended). Read live
+  # by the on_time triggers via id(schedule_enabled).state.
+  - platform: template
+    name: "Schedule Enabled"
+    id: schedule_enabled
+    entity_category: CONFIG
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+
+# -----------------------------------------------------------------------------
+# Daily open/close schedule
+# -----------------------------------------------------------------------------
+# Two browser-editable time pickers (shown in the web UI and Home Assistant).
+# Each fires once a day at the set local time via its on_time trigger; the
+# action runs only when "Schedule Enabled" is on, and is skipped while HOMING
+# (global_state == 3) so a scheduled move can't interrupt sensorless homing.
+# Times persist across reboots (restore_value). Local time depends on the
+# Timezone set below.
+datetime:
+  - platform: template
+    name: "Open Time"
+    id: open_time
+    type: time
+    entity_category: CONFIG
+    optimistic: true
+    restore_value: true
+    initial_value: "07:00:00"
+    on_time:
+      - if:
+          condition:
+            lambda: 'return id(schedule_enabled).state && id(global_state) != 3;'
+          then:
+            - logger.log: "Schedule: opening cover"
+            - cover.open: ropener_cover
+
+  - platform: template
+    name: "Close Time"
+    id: close_time
+    type: time
+    entity_category: CONFIG
+    optimistic: true
+    restore_value: true
+    initial_value: "21:00:00"
+    on_time:
+      - if:
+          condition:
+            lambda: 'return id(schedule_enabled).state && id(global_state) != 3;'
+          then:
+            - logger.log: "Schedule: closing cover"
+            - cover.close: ropener_cover
+
+# -----------------------------------------------------------------------------
+# Timezone (browser-editable)
+# -----------------------------------------------------------------------------
+# POSIX TZ string for the schedule's local time, editable in the web UI / HA
+# and persisted across reboots. POSIX TZ format (note the sign is inverted vs.
+# UTC offset), e.g.:
+#   "UTC0"                          UTC (default)
+#   "EST5EDT,M3.2.0,M11.1.0"        US Eastern with DST
+#   "PST8PDT,M3.2.0,M11.1.0"        US Pacific with DST
+#   "CET-1CEST,M3.5.0,M10.5.0/3"    Central Europe with DST
+# Changing it calls set_timezone() immediately; on_boot re-applies the saved
+# value (see esphome.on_boot). Find your zone's POSIX string in the IANA tz DB.
+text:
+  - platform: template
+    name: "Timezone"
+    id: tz_text
+    entity_category: CONFIG
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: "UTC0"
+    min_length: 0
+    max_length: 64
+    set_action:
+      - lambda: 'id(sntp_time)->set_timezone(x);'
 
 
 # -----------------------------------------------------------------------------
