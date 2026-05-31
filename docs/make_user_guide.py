@@ -118,6 +118,7 @@ def mono_table(headers, rows, widths=None):
             # monospace any cell that looks like a POSIX string / value
             if any(ch in val for ch in (",", "<")) or val[:3] in (
                 "EST", "CST", "MST", "PST", "AKS", "HST", "SST", "ChS", "AST", "UTC",
+                "WET", "GMT", "CET", "EET", "MSK",
             ):
                 run.font.name = MONO
                 run.font.size = Pt(9.5)
@@ -392,22 +393,25 @@ warn.add_run(
     "right — just copy it exactly, including capitalization and punctuation."
 )
 doc.add_paragraph(
-    "The two trailing parts (for example “,M3.2.0,M11.1.0”) are the daylight-saving "
-    "rules: switch forward on the 2nd Sunday of March and back on the 1st Sunday of "
-    "November — the current U.S. rule. If your area does not observe daylight saving "
-    "time, use the “without DST” value, which has no trailing rules."
+    "The trailing parts (for example “,M3.2.0,M11.1.0”) are the daylight-saving "
+    "rules. The U.S. switches on the 2nd Sunday of March and the 1st Sunday of "
+    "November; the European Union switches on the last Sunday of March and the last "
+    "Sunday of October. The tables in Section 8 already encode the correct rule for "
+    "each region — just copy the value exactly. If your area does not observe "
+    "daylight saving time, use the “without DST” value, which has no trailing rules."
 )
 
 # ============================================================================
 # 8. US TIMEZONE TABLE
 # ============================================================================
-doc.add_heading("8. U.S. Timezone POSIX Strings", level=1)
+doc.add_heading("8. Timezone POSIX Strings", level=1)
 doc.add_paragraph(
     "Find your region below and copy the matching string into the Timezone box. "
     "Use the “With DST” column if your area changes its clocks twice a year; use "
     "“Without DST (standard all year)” if it does not."
 )
 
+doc.add_heading("United States", level=2)
 tz_rows = [
     ["Eastern", "New York, Florida, Ohio, most of the East Coast",
      "EST5EDT,M3.2.0,M11.1.0", "EST5"],
@@ -445,6 +449,48 @@ small.add_run(
     "so only the standard-time string applies. Daylight-saving rules shown reflect "
     "current U.S. law (spring forward 2nd Sunday of March, fall back 1st Sunday of "
     "November)."
+).italic = True
+
+doc.add_heading("Europe", level=2)
+doc.add_paragraph(
+    "Most of Europe observes EU daylight saving (forward on the last Sunday of "
+    "March, back on the last Sunday of October). Countries that do not change "
+    "their clocks are listed with a single standard-time value."
+)
+eu_rows = [
+    ["Western European", "Portugal (mainland), Canary Islands",
+     "WET0WEST,M3.5.0/1,M10.5.0", "WET0"],
+    ["UK / Ireland", "United Kingdom, Ireland",
+     "GMT0BST,M3.5.0/1,M10.5.0", "GMT0"],
+    ["Central European",
+     "France, Germany, Spain, Italy, Netherlands, Belgium, Poland, Sweden, Norway, "
+     "Denmark, Switzerland, Austria, Czechia — most of central Europe",
+     "CET-1CEST,M3.5.0,M10.5.0/3", "CET-1"],
+    ["Eastern European",
+     "Greece, Finland, Romania, Bulgaria, Estonia, Latvia, Lithuania, Ukraine",
+     "EET-2EEST,M3.5.0/3,M10.5.0/4", "EET-2"],
+    ["Azores", "Azores (Portugal)",
+     "<-01>1<+00>,M3.5.0/0,M10.5.0/1", "<-01>1"],
+    ["Iceland", "Iceland — no daylight saving",
+     "(not used)", "GMT0"],
+    ["Kaliningrad", "Kaliningrad, Russia — no daylight saving",
+     "(not used)", "EET-2"],
+    ["Moscow", "Moscow / western Russia — no daylight saving",
+     "(not used)", "MSK-3"],
+    ["Belarus", "Minsk, Belarus — no daylight saving",
+     "(not used)", "<+03>-3"],
+    ["Turkey", "Türkiye — no daylight saving",
+     "(not used)", "<+03>-3"],
+]
+mono_table(
+    ["Zone", "Where it's used", "With DST", "Without DST (standard all year)"],
+    eu_rows,
+    widths=[1.2, 2.6, 1.6, 1.3],
+)
+small = doc.add_paragraph()
+small.add_run(
+    "Zones marked “(not used)” under With DST do not change their clocks. POSIX "
+    "values are taken directly from the IANA time zone database."
 ).italic = True
 
 # ============================================================================
