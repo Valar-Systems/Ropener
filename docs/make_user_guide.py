@@ -153,7 +153,7 @@ r.font.color.rgb = ORANGE
 
 ver = doc.add_paragraph()
 ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-r = ver.add_run("Firmware 2.3.0")
+r = ver.add_run("Firmware 2.4.0")
 r.italic = True
 r.font.color.rgb = GREY
 
@@ -182,8 +182,8 @@ intro.add_run(
     "rope with a small stepper motor to open and close your curtains. You can "
     "control it from any web browser on your network — no Home Assistant or "
     "cloud account required — or pair it with Home Assistant if you use one. "
-    "It supports a daily open/close schedule, automatic position calibration, "
-    "and several tuning options."
+    "It supports a daily open/close schedule (by fixed clock times or "
+    "sunrise/sunset), automatic position calibration, and several tuning options."
 )
 
 # ============================================================================
@@ -194,7 +194,7 @@ bullets([
     ("Control from a browser: ", "open the device's web page on your phone or computer."),
     ("Three ways to operate: ", "the web page, the physical buttons on the device, or Home Assistant."),
     ("Open / close / partial: ", "drive the curtain fully open, fully closed, or to any position in between."),
-    ("Daily schedule: ", "set a time to open and a time to close automatically every day."),
+    ("Daily schedule: ", "open and close automatically every day — at fixed clock times, or following sunrise and sunset."),
     ("Self-calibrating: ", "the device finds the fully-closed position by itself (“homing”)."),
 ])
 
@@ -340,14 +340,28 @@ doc.add_paragraph(
 # ============================================================================
 doc.add_heading("6. Set Up the Daily Schedule", level=1)
 doc.add_paragraph(
-    "The device can open and close the curtain automatically at set times every "
-    "day. Four controls on the web page work together:"
+    "The device can open and close the curtain automatically every day. There are "
+    "two scheduling modes — pick the one you prefer:"
 )
+bullets([
+    ("Fixed times — ", "open and close at clock times you choose (e.g. 07:00 and 21:00)."),
+    ("Sunrise / sunset — ", "open at sunrise and close at sunset, so the curtain "
+     "follows the daylight as it shifts through the seasons."),
+])
+doc.add_paragraph(
+    "“Schedule Enabled” is the master on/off for whichever mode is active. The "
+    "“Sun Schedule” switch chooses between the two: OFF uses the fixed times, ON "
+    "uses sunrise/sunset. Both modes run on local time, so set your Timezone first "
+    "(Section 7)."
+)
+
+doc.add_heading("Fixed times (default)", level=2)
 mono_table(
     ["Control", "What to set"],
     [
         ["Open Time", "The time of day to open the cover (e.g. 07:00)."],
         ["Close Time", "The time of day to close the cover (e.g. 21:00)."],
+        ["Sun Schedule", "Leave this OFF to use fixed times."],
         ["Schedule Enabled", "Turn this ON to run the schedule, OFF to pause it."],
         ["Timezone", "Your local timezone, so the times mean what you expect (see Section 7)."],
     ],
@@ -357,14 +371,60 @@ doc.add_paragraph("Steps:")
 bullets([
     "Set your Timezone first (Section 7) — the open/close times are in local time.",
     "Set Open Time and Close Time.",
+    "Make sure Sun Schedule is OFF.",
     "Turn Schedule Enabled ON.",
 ], style="List Number")
+
+doc.add_heading("Sunrise / sunset (Sun Schedule)", level=2)
+doc.add_paragraph(
+    "Turn “Sun Schedule” ON to follow the sun instead of the clock. The curtain "
+    "opens at sunrise and closes at sunset for your location, recalculated every "
+    "day so it tracks the changing seasons automatically — no need to adjust times "
+    "by hand."
+)
+doc.add_paragraph(
+    "For this to be accurate, the device needs to know where it is. Enter your "
+    "Latitude and Longitude in decimal degrees (north and east are positive; south "
+    "and west are negative). You can copy these from any maps app — for example, "
+    "New York is about Latitude 40.71, Longitude -74.01."
+)
+mono_table(
+    ["Control", "What to set"],
+    [
+        ["Sun Schedule", "Turn this ON to use sunrise/sunset."],
+        ["Latitude", "Your location's latitude in decimal degrees (e.g. 40.71)."],
+        ["Longitude", "Your location's longitude in decimal degrees (e.g. -74.01)."],
+        ["Sun Open Offset", "Minutes to shift the morning open relative to sunrise (see below)."],
+        ["Sun Close Offset", "Minutes to shift the evening close relative to sunset (see below)."],
+        ["Schedule Enabled", "Turn this ON to run the schedule."],
+        ["Timezone", "Your local timezone (see Section 7)."],
+    ],
+    widths=[1.7, 4.7],
+)
+doc.add_paragraph("Offsets let you open or close a little before or after the sun, in minutes:")
+bullets([
+    "A positive offset is after the event; a negative offset is before it.",
+    "To open 30 minutes after sunrise, set Sun Open Offset to 30.",
+    "To close 30 minutes before sunset, set Sun Close Offset to -30.",
+    "Leave both at 0 to open exactly at sunrise and close exactly at sunset.",
+])
+doc.add_paragraph("Steps:")
+bullets([
+    "Set your Timezone (Section 7).",
+    "Enter your Latitude and Longitude.",
+    "Optionally set the open/close offsets.",
+    "Turn Sun Schedule ON.",
+    "Turn Schedule Enabled ON.",
+], style="List Number")
+
 note = doc.add_paragraph()
 note.add_run("Notes: ").bold = True
 note.add_run(
-    "The schedule needs an internet connection to keep accurate time. Scheduled "
-    "moves are skipped while the device is homing. The schedule is off by default, "
-    "and all four settings are remembered across reboots."
+    "Both schedules need an internet connection to keep accurate time. Scheduled "
+    "moves are skipped while the device is homing, and every schedule setting is "
+    "remembered across reboots. With Sun Schedule ON the fixed Open Time / Close "
+    "Time are ignored. If you leave Latitude and Longitude at 0, sunrise/sunset "
+    "will not match your location — set them before relying on the sun schedule."
 )
 
 # ============================================================================
@@ -605,6 +665,9 @@ mono_table(
          "Check the Timezone value (Section 7/8) and that the device has internet for time sync."],
         ["Schedule doesn't run",
          "Confirm “Schedule Enabled” is ON and that Open/Close times are set."],
+        ["Sun schedule opens/closes at the wrong time",
+         "Set Latitude and Longitude for your location and check the Timezone "
+         "(Section 7/8). With Sun Schedule ON, the fixed Open/Close times are ignored."],
         ["Homing motor doesn't stop on its own",
          "Expected in this version — automatic stop (StallGuard) is disabled. Press Stop "
          "when the curtain reaches the closed position (Section 5)."],
@@ -624,8 +687,11 @@ mono_table(
         ["Ropener (cover)", "Open, close, set position, or stop."],
         ["State", "Shows IDLE / OPENING / CLOSING / HOMING."],
         ["Start-Stop Homing", "Start or cancel calibration."],
-        ["Open Time / Close Time", "Daily schedule times."],
+        ["Open Time / Close Time", "Daily schedule times (fixed-time mode)."],
         ["Schedule Enabled", "Turn the daily schedule on/off."],
+        ["Sun Schedule", "Switch between fixed-time and sunrise/sunset scheduling."],
+        ["Latitude / Longitude", "Your location used to compute sunrise/sunset."],
+        ["Sun Open Offset / Sun Close Offset", "Minutes to shift open/close relative to sunrise/sunset."],
         ["Timezone", "Your local timezone (POSIX string)."],
         ["Centimeters", "Curtain travel distance."],
         ["Speed / Acceleration", "Motion tuning."],
