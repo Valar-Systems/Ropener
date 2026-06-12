@@ -1,6 +1,6 @@
 # =============================================================================
 # Ropener — ESPHome firmware
-# Version: 2.3.0
+# Version: 2.4.0
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a beaded rope using a
@@ -212,6 +212,46 @@ globals:
     restore_value: yes
     initial_value: '0'
 
+  # Geographic location for the sunrise/sunset schedule, in decimal degrees
+  # (north and east positive). Persisted and browser-editable via the
+  # "Latitude"/"Longitude" numbers; pushed into the sun component on change and
+  # on boot. Default 0,0 — set your real coordinates for the sun schedule to be
+  # meaningful.
+  - id: global_latitude
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+
+  - id: global_longitude
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+
+  # Minute offsets applied to the sun events: the cover opens at
+  # sunrise + open_offset and closes at sunset + close_offset. Signed, so a
+  # negative value fires before the event (e.g. "close 30 min before sunset" is
+  # a close offset of -30). Persisted and browser-editable.
+  - id: global_sun_open_offset
+    type: int
+    restore_value: yes
+    initial_value: '0'
+
+  - id: global_sun_close_offset
+    type: int
+    restore_value: yes
+    initial_value: '0'
+
+  # Last daylight state the sun scheduler drove the cover to (1 = open/day,
+  # 0 = closed/night, -1 = not yet evaluated). The scheduler only issues a move
+  # when this changes, so it acts once per sunrise/sunset transition (and
+  # reconciles to the correct state on boot) without repeatedly fighting manual
+  # control. Reset to -1 whenever the schedule mode or its inputs change. Not
+  # persisted: every boot re-evaluates from the current time.
+  - id: global_sun_last_desired
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
 # -----------------------------------------------------------------------------
 # Derived-value recompute
 # -----------------------------------------------------------------------------
@@ -258,14 +298,51 @@ api:
 ota:
   - platform: esphome
 
-# Default UART logger. Add `level: DEBUG` here when troubleshooting StallGuard.
+# UART logger. By default ESPHome logs one DEBUG line per entity publish, so
+# the chatty `number` / `text_sensor` / `sensor` entities (which re-publish on
+# every update_interval) flood the log even while idle. Keep the global level
+# at DEBUG so device events still show (homing, the sun schedule, Wi-Fi), but
+# raise those three publish-heavy tags to INFO to hide their routine updates.
+# The live values are still visible in the web UI / Home Assistant — only the
+# log spam is suppressed. To watch SG_RESULT in the log while tuning StallGuard,
+# set `sensor: DEBUG` here (or remove that line).
 logger:
+  logs:
+    number: INFO
+    text_sensor: INFO
+    sensor: INFO
 
 # Browser-based control panel — open http://ropener.local in any
-# browser on the same network. Exposes all entities (cover, buttons, sliders,
+# browser on the same network. Exposes all entities (cover, buttons, numbers,
 # switches, sensors) without requiring Home Assistant.
+#
+# version: 3 enables the grouped UI: instead of one alphabetical list, entities
+# are placed into the labeled, collapsible groups defined below. Each entity
+# sets `web_server: { sorting_weight, sorting_group_id }` to choose its group
+# and position within it; the groups themselves are ordered by their own
+# sorting_weight (lower = higher on the page).
 web_server:
   port: 80
+  version: 3
+  sorting_groups:
+    - id: group_control
+      name: "Control"
+      sorting_weight: 10
+    - id: group_setup
+      name: "Setup"
+      sorting_weight: 20
+    - id: group_schedule
+      name: "Schedule"
+      sorting_weight: 30
+    - id: group_motion
+      name: "Motion Tuning"
+      sorting_weight: 40
+    - id: group_stallguard
+      name: "StallGuard / Homing"
+      sorting_weight: 50
+    - id: group_diagnostics
+      name: "Diagnostics"
+      sorting_weight: 60
 
 # -----------------------------------------------------------------------------
 # Board / Wi-Fi
@@ -317,6 +394,21 @@ time:
     timezone: "UTC0"
 
 # -----------------------------------------------------------------------------
+# Sun position (drives the optional sunrise/sunset schedule)
+# -----------------------------------------------------------------------------
+# Computes local sunrise/sunset from the device's latitude/longitude and the
+# SNTP clock above. The lat/long literals here are placeholders (0,0 — "null
+# island"); the real location is pushed in at runtime from the browser-editable
+# "Latitude"/"Longitude" numbers (and re-applied in on_boot), so no reflash is
+# needed to set your location. Consumed by the sun-schedule interval further
+# down when "Sun Schedule" is enabled. The time source is auto-resolved to the
+# single `time:` component above.
+sun:
+  id: sun_sun
+  latitude: 0°
+  longitude: 0°
+
+# -----------------------------------------------------------------------------
 # Device identity + boot-time motor configuration
 # -----------------------------------------------------------------------------
 # on_boot restores the persisted globals into the TMC2209 driver and stepper
@@ -334,7 +426,7 @@ esphome:
   # which build is running. Bump `version` on every released change.
   project:
     name: "valar-systems.ropener"
-    version: "2.3.0"
+    version: "2.4.0"
   on_boot:
     - script.execute: recompute_distance     # resync derived step count from the persisted cm
     - tmc2209.configure:
@@ -369,6 +461,13 @@ esphome:
         // here on boot. (Runs after component setup, like the stepper restore
         // above, which also relies on restored state.)
         id(sntp_time)->set_timezone(id(tz_text)->state);
+    - lambda: |-
+        // Same story for the saved location: the Latitude/Longitude numbers
+        // restore their values but don't re-fire their set_action, so push
+        // them into the sun component here so sunrise/sunset are computed for
+        // the right place after a reboot.
+        id(sun_sun)->set_latitude(id(global_latitude));
+        id(sun_sun)->set_longitude(id(global_longitude));
 
 # -----------------------------------------------------------------------------
 # UART to TMC2209 (PDN_UART, single-wire)
@@ -439,6 +538,9 @@ stepper:
 binary_sensor:
   - platform: gpio
     name: Button 1
+    web_server:
+      sorting_weight: 1
+      sorting_group_id: group_diagnostics
     id: btn1
     pin:
       number: 3
@@ -528,6 +630,9 @@ binary_sensor:
 
   - platform: gpio
     name: Button 2
+    web_server:
+      sorting_weight: 2
+      sorting_group_id: group_diagnostics
     id: btn2
     pin:
       number: 8
@@ -556,6 +661,9 @@ binary_sensor:
   # (Improv over USB serial works too).
   - platform: gpio
     name: WiFi Reset
+    web_server:
+      sorting_weight: 3
+      sorting_group_id: group_diagnostics
     id: btn_wifi_reset
     pin:
       number: 4
@@ -594,6 +702,9 @@ cover:
   - platform: template
     id: ropener_cover
     name: Ropener
+    web_server:
+      sorting_weight: 1
+      sorting_group_id: group_control
     has_position: true
     assumed_state: false
     lambda: "return float(id(driver)->current_position) / float(id(global_distance_steps));"
@@ -662,6 +773,9 @@ button:
   # While HOMING, pressing this button instead stops the motor and zeroes the position.
   - platform: template
     name: "Start-Stop Homing"
+    web_server:
+      sorting_weight: 3
+      sorting_group_id: group_control
     entity_category: DIAGNOSTIC
     on_press:
       - if:
@@ -708,6 +822,9 @@ button:
 switch:
   - platform: template
     name: "Motor Direction"
+    web_server:
+      sorting_weight: 2
+      sorting_group_id: group_setup
     entity_category: CONFIG
     optimistic: true
     turn_on_action:
@@ -723,17 +840,45 @@ switch:
       - tmc2209.configure:
           direction: !lambda return id(global_stepper_direction);
 
-  # Schedule Enabled: master on/off for the daily open/close schedule below.
-  # When OFF, the "Open Time"/"Close Time" triggers do nothing. `optimistic`
-  # stores the state locally; `restore_mode` brings it back after a reboot
-  # (default OFF so a fresh unit never moves the cover unattended). Read live
-  # by the on_time triggers via id(schedule_enabled).state.
+  # Schedule Enabled: master on/off for the daily schedule. When OFF, neither
+  # schedule moves the cover. When ON, the "Sun Schedule" switch below selects
+  # the mode: fixed "Open Time"/"Close Time" pickers (Sun Schedule OFF) or
+  # sunrise/sunset with offsets (Sun Schedule ON). `optimistic` stores the
+  # state locally; `restore_mode` brings it back after a reboot (default OFF so
+  # a fresh unit never moves the cover unattended). Read live by the on_time
+  # triggers and the sun-schedule interval via id(schedule_enabled).state.
   - platform: template
     name: "Schedule Enabled"
+    web_server:
+      sorting_weight: 1
+      sorting_group_id: group_schedule
     id: schedule_enabled
     entity_category: CONFIG
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
+
+  # Sun Schedule: picks WHICH schedule the master "Schedule Enabled" runs.
+  #   OFF -> fixed "Open Time"/"Close Time" pickers (default)
+  #   ON  -> sunrise/sunset: open at sunrise + "Sun Open Offset" and close at
+  #          sunset + "Sun Close Offset" (see those numbers and the sun-schedule
+  #          interval). The fixed on_time triggers are suppressed while this is
+  #          ON, so only one schedule is ever active at a time.
+  # Master "Schedule Enabled" must still be ON for either schedule to run.
+  # Resets the scheduler's cached daylight state on enable so it reconciles the
+  # cover to the current sun position immediately rather than at the next event.
+  - platform: template
+    name: "Sun Schedule"
+    web_server:
+      sorting_weight: 2
+      sorting_group_id: group_schedule
+    id: sun_schedule_enabled
+    entity_category: CONFIG
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - globals.set:
+          id: global_sun_last_desired
+          value: "-1"
 
 
 # -----------------------------------------------------------------------------
@@ -748,6 +893,9 @@ switch:
 datetime:
   - platform: template
     name: "Open Time"
+    web_server:
+      sorting_weight: 3
+      sorting_group_id: group_schedule
     id: open_time
     type: time
     entity_category: CONFIG
@@ -757,13 +905,16 @@ datetime:
     on_time:
       - if:
           condition:
-            lambda: 'return id(schedule_enabled).state && id(global_state) != 3;'
+            lambda: 'return id(schedule_enabled).state && !id(sun_schedule_enabled).state && id(global_state) != 3;'
           then:
             - logger.log: "Schedule: opening cover"
             - cover.open: ropener_cover
 
   - platform: template
     name: "Close Time"
+    web_server:
+      sorting_weight: 4
+      sorting_group_id: group_schedule
     id: close_time
     type: time
     entity_category: CONFIG
@@ -773,7 +924,7 @@ datetime:
     on_time:
       - if:
           condition:
-            lambda: 'return id(schedule_enabled).state && id(global_state) != 3;'
+            lambda: 'return id(schedule_enabled).state && !id(sun_schedule_enabled).state && id(global_state) != 3;'
           then:
             - logger.log: "Schedule: closing cover"
             - cover.close: ropener_cover
@@ -793,6 +944,9 @@ datetime:
 text:
   - platform: template
     name: "Timezone"
+    web_server:
+      sorting_weight: 9
+      sorting_group_id: group_schedule
     id: tz_text
     entity_category: CONFIG
     mode: text
@@ -820,6 +974,9 @@ number:
   #   distance_steps = (cm / gear_distance_cm) * steps_per_revolution
   - platform: template
     name: "Centimeters"
+    web_server:
+      sorting_weight: 1
+      sorting_group_id: group_setup
     step: 1
     min_value: 1
     max_value: 9000
@@ -838,10 +995,13 @@ number:
   # missed steps and audible noise.
   - platform: template
     name: "Acceleration"
+    web_server:
+      sorting_weight: 2
+      sorting_group_id: group_motion
     step: 100
     min_value: 100
     max_value: 10000
-    mode: SLIDER
+    mode: BOX
     entity_category: CONFIG
     lambda: return id(global_acceleration);
     update_interval: 1s
@@ -857,10 +1017,13 @@ number:
   # Cruise speed (steps/s). Hard-capped by the stepper's max_speed (2000).
   - platform: template
     name: "Speed"
+    web_server:
+      sorting_weight: 1
+      sorting_group_id: group_motion
     step: 100
     min_value: 100
     max_value: 10000
-    mode: SLIDER
+    mode: BOX
     entity_category: CONFIG
     lambda: return id(global_speed);
     update_interval: 1s
@@ -877,13 +1040,16 @@ number:
   # field, not the cached global, so any external change is reflected.
   - platform: template
     name: "IRUN value"
+    web_server:
+      sorting_weight: 1
+      sorting_group_id: group_stallguard
     step: 1
     min_value: 1
     max_value: 31
     mode: BOX
     entity_category: CONFIG
     lambda: return id(driver)->read_field(IRUN_FIELD);
-    update_interval: 1s
+    update_interval: 30s   # config value read over UART; poll slowly to limit register traffic
     set_action:
       then:
         - globals.set:
@@ -896,13 +1062,16 @@ number:
   # (motor must be moving at least this fast). 20 bits, 0..1,048,575.
   - platform: template
     name: "TCOOLTHRS value"
+    web_server:
+      sorting_weight: 3
+      sorting_group_id: group_stallguard
     step: 1
     min_value: 0
     max_value: 1048575
     mode: BOX
     entity_category: CONFIG
     lambda: return id(driver)->read_register(TCOOLTHRS);
-    update_interval: 1s
+    update_interval: 30s   # config value read over UART; poll slowly to limit register traffic
     set_action:
       then:
         - globals.set:
@@ -915,19 +1084,118 @@ number:
   # SG_RESULT sensor while moving.
   - platform: template
     name: "SGTHRS value"
+    web_server:
+      sorting_weight: 2
+      sorting_group_id: group_stallguard
     step: 1
     min_value: 0
     max_value: 255
-    mode: SLIDER
+    mode: BOX
     entity_category: CONFIG
     lambda: return id(driver)->read_register(SGTHRS);
-    update_interval: 1s
+    update_interval: 30s   # config value read over UART; poll slowly to limit register traffic
     set_action:
       then:
         - globals.set:
             id: global_sgthrs
             value: !lambda "return x;"
         - lambda: id(driver)->write_register(SGTHRS, x);
+
+  # ---- Sun-schedule location & offsets ----------------------------------------
+  # Latitude / Longitude in decimal degrees (north & east positive). Used only
+  # by the sun schedule. Pushed into the sun component on change (and on boot);
+  # changing either also resets the scheduler so it re-evaluates immediately.
+  # Set these to your location for sunrise/sunset to be accurate.
+  - platform: template
+    name: "Latitude"
+    web_server:
+      sorting_weight: 7
+      sorting_group_id: group_schedule
+    step: 0.0001
+    min_value: -90
+    max_value: 90
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_latitude);
+    update_interval: 30s
+    set_action:
+      then:
+        - globals.set:
+            id: global_latitude
+            value: !lambda "return x;"
+        - lambda: id(sun_sun)->set_latitude(x);
+        - globals.set:
+            id: global_sun_last_desired
+            value: "-1"
+
+  - platform: template
+    name: "Longitude"
+    web_server:
+      sorting_weight: 8
+      sorting_group_id: group_schedule
+    step: 0.0001
+    min_value: -180
+    max_value: 180
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_longitude);
+    update_interval: 30s
+    set_action:
+      then:
+        - globals.set:
+            id: global_longitude
+            value: !lambda "return x;"
+        - lambda: id(sun_sun)->set_longitude(x);
+        - globals.set:
+            id: global_sun_last_desired
+            value: "-1"
+
+  # Minute offsets for the sun schedule. Open fires at sunrise + open offset,
+  # close at sunset + close offset. Negative = before the event (e.g. set the
+  # close offset to -30 to close 30 minutes before sunset).
+  - platform: template
+    name: "Sun Open Offset"
+    web_server:
+      sorting_weight: 5
+      sorting_group_id: group_schedule
+    unit_of_measurement: "min"
+    step: 1
+    min_value: -180
+    max_value: 180
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_sun_open_offset);
+    update_interval: 30s
+    set_action:
+      then:
+        - globals.set:
+            id: global_sun_open_offset
+            value: !lambda "return x;"
+        - globals.set:
+            id: global_sun_last_desired
+            value: "-1"
+
+  - platform: template
+    name: "Sun Close Offset"
+    web_server:
+      sorting_weight: 6
+      sorting_group_id: group_schedule
+    unit_of_measurement: "min"
+    step: 1
+    min_value: -180
+    max_value: 180
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_sun_close_offset);
+    update_interval: 30s
+    set_action:
+      then:
+        - globals.set:
+            id: global_sun_close_offset
+            value: !lambda "return x;"
+        - globals.set:
+            id: global_sun_last_desired
+            value: "-1"
 
 # -----------------------------------------------------------------------------
 # State exposure (HA)
@@ -938,6 +1206,9 @@ number:
 text_sensor:
   - platform: template
     name: "State"
+    web_server:
+      sorting_weight: 2
+      sorting_group_id: group_control
     id: cover_state
     update_interval: 500ms
     lambda: |-
@@ -976,6 +1247,49 @@ interval:
                 id: ropener_cover
                 current_operation: IDLE
 
+  # ---------------------------------------------------------------------------
+  # Sun schedule poll
+  # ---------------------------------------------------------------------------
+  # When the master "Schedule Enabled" and "Sun Schedule" are both on, drive the
+  # cover to match daylight: open during the day, closed at night, using local
+  # sunrise/sunset (from the sun component) plus the minute offsets. We compare
+  # the desired daylight state to the last one we acted on and only issue a move
+  # on a transition — so it fires once at sunrise and once at sunset, reconciles
+  # to the right state on boot, and never repeatedly fights manual control.
+  # Skipped while HOMING. A 60 s tick is plenty for minute-resolution events.
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(schedule_enabled).state && id(sun_schedule_enabled).state && id(global_state) != 3;'
+          then:
+            - lambda: |-
+                auto now = id(sntp_time)->now();
+                if (!now.is_valid())
+                  return;                                   // clock not synced yet
+                auto sr = id(sun_sun)->sunrise(-0.833);     // standard sunrise/sunset elevation
+                auto ss = id(sun_sun)->sunset(-0.833);
+                if (!sr.has_value() || !ss.has_value())
+                  return;                                   // no event today (polar day/night) or no location
+                int now_min   = now.hour * 60 + now.minute;
+                int open_min  = sr->hour * 60 + sr->minute + id(global_sun_open_offset);
+                int close_min = ss->hour * 60 + ss->minute + id(global_sun_close_offset);
+                int desired = (now_min >= open_min && now_min < close_min) ? 1 : 0;
+                if (desired == id(global_sun_last_desired))
+                  return;                                   // already in the right state
+                id(global_sun_last_desired) = desired;
+                ESP_LOGI("sun_schedule", "%s cover (now %02d:%02d, open %02d:%02d, close %02d:%02d)",
+                         desired ? "opening" : "closing",
+                         now.hour, now.minute,
+                         (open_min / 60) % 24, ((open_min % 60) + 60) % 60,
+                         (close_min / 60) % 24, ((close_min % 60) + 60) % 60);
+                auto call = id(ropener_cover)->make_call();
+                if (desired == 1)
+                  call.set_command_open();
+                else
+                  call.set_command_close();
+                call.perform();
+
 # -----------------------------------------------------------------------------
 # Diagnostic sensors (live TMC2209 register readouts)
 # -----------------------------------------------------------------------------
@@ -986,6 +1300,9 @@ sensor:
   # StallGuard is only active when TSTEP < TCOOLTHRS.
   - platform: template
     name: "TSTEP Sensor"
+    web_server:
+      sorting_weight: 5
+      sorting_group_id: group_stallguard
     lambda: return id(driver)->read_register(TSTEP);
     update_interval: 5s
     entity_category: DIAGNOSTIC
@@ -994,6 +1311,9 @@ sensor:
   # signalled when SG_RESULT < 2*SGTHRS.
   - platform: template
     name: "SG_RESULT Sensor"
+    web_server:
+      sorting_weight: 4
+      sorting_group_id: group_stallguard
     lambda: return id(driver)->read_register(SG_RESULT);
     update_interval: 1s
     entity_category: DIAGNOSTIC

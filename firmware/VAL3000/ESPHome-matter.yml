@@ -180,8 +180,19 @@ api:
 ota:
   - platform: esphome
 
-# Default UART logger. Add `level: DEBUG` here when troubleshooting StallGuard.
+# UART logger. By default ESPHome logs one DEBUG line per entity publish, so
+# the chatty `number` / `text_sensor` / `sensor` entities (which re-publish on
+# every update_interval) flood the log even while idle. Keep the global level
+# at DEBUG so device events still show (homing, Wi-Fi), but raise those three
+# publish-heavy tags to INFO to hide their routine updates. The live values are
+# still visible in the web UI / Home Assistant — only the log spam is
+# suppressed. To watch SG_RESULT in the log while tuning StallGuard, set
+# `sensor: DEBUG` here (or remove that line).
 logger:
+  logs:
+    number: INFO
+    text_sensor: INFO
+    sensor: INFO
 
 # -----------------------------------------------------------------------------
 # Matter
@@ -557,7 +568,7 @@ number:
     step: 100
     min_value: 100
     max_value: 10000
-    mode: SLIDER
+    mode: BOX
     entity_category: CONFIG
     lambda: return id(global_acceleration);
     update_interval: 1s
@@ -575,7 +586,7 @@ number:
     step: 100
     min_value: 100
     max_value: 10000
-    mode: SLIDER
+    mode: BOX
     entity_category: CONFIG
     lambda: return id(global_speed);
     update_interval: 1s
@@ -596,7 +607,7 @@ number:
     mode: BOX
     entity_category: CONFIG
     lambda: return id(driver)->read_field(IRUN_FIELD);
-    update_interval: 1s
+    update_interval: 30s   # config value read over UART; poll slowly to limit register traffic
     set_action:
       then:
         - globals.set:
@@ -613,7 +624,7 @@ number:
     mode: BOX
     entity_category: CONFIG
     lambda: return id(driver)->read_register(TCOOLTHRS);
-    update_interval: 1s
+    update_interval: 30s   # config value read over UART; poll slowly to limit register traffic
     set_action:
       then:
         - globals.set:
@@ -626,10 +637,10 @@ number:
     step: 1
     min_value: 0
     max_value: 255
-    mode: SLIDER
+    mode: BOX
     entity_category: CONFIG
     lambda: return id(driver)->read_register(SGTHRS);
-    update_interval: 1s
+    update_interval: 30s   # config value read over UART; poll slowly to limit register traffic
     set_action:
       then:
         - globals.set:
