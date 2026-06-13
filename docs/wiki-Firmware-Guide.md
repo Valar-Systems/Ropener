@@ -62,12 +62,12 @@ You don't need to understand every line to update the firmware — but it's all 
 
 ## 3. Which YAML file is mine?
 
-The YAML source for each board lives in its own sub-folder under [`firmware/`](https://github.com/Valar-Systems/Ropener/tree/main/firmware); the matching **pre-built binaries are attached to each [release](https://github.com/Valar-Systems/Ropener/releases/latest)**. Every release provides two binaries per board — a `*.factory.bin` (full image for the first USB flash) and a `*.ota.bin` (the over-the-air update image you upload from the device's web page). So you can build from source, flash the factory image with no tools, or update an already-running device straight from its browser (see [Section 6](#6-updating-the-firmware-from-the-yaml)). The v2.4.0 files:
+The YAML source for each board lives in its own sub-folder under [`firmware/`](https://github.com/Valar-Systems/Ropener/tree/main/firmware); the matching **pre-built binaries are attached to each [release](https://github.com/Valar-Systems/Ropener/releases/latest)**. Every release provides two binaries per board — a `*.factory.bin` (full image for the first USB flash) and a `*.ota.bin` (the over-the-air update image you upload from the device's web page). So you can build from source, flash the factory image with no tools, or update an already-running device straight from its browser (see [Section 6](#6-updating-the-firmware-from-the-yaml)). The v2.4.1 files:
 
 | Board | Microcontroller | YAML source | Factory image — first USB flash | OTA image — Wi-Fi update |
 | --- | --- | --- | --- | --- |
-| **VAL3100** | ESP32-**C6** | [`Ropener-VAL3100-2.4.0.yml`](https://github.com/Valar-Systems/Ropener/blob/main/firmware/VAL3100/Ropener-VAL3100-2.4.0.yml) | [`Ropener-VAL3100-2.4.0.factory.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.0/Ropener-VAL3100-2.4.0.factory.bin) | [`Ropener-VAL3100-2.4.0.ota.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.0/Ropener-VAL3100-2.4.0.ota.bin) |
-| **VAL3000** | ESP32-**C3** | [`Ropener-VAL3000-2.4.0.yml`](https://github.com/Valar-Systems/Ropener/blob/main/firmware/VAL3000/Ropener-VAL3000-2.4.0.yml) | [`Ropener-VAL3000-2.4.0.factory.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.0/Ropener-VAL3000-2.4.0.factory.bin) | [`Ropener-VAL3000-2.4.0.ota.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.0/Ropener-VAL3000-2.4.0.ota.bin) |
+| **VAL3100** | ESP32-**C6** | [`Ropener-VAL3100-2.4.1.yml`](https://github.com/Valar-Systems/Ropener/blob/main/firmware/VAL3100/Ropener-VAL3100-2.4.1.yml) | [`Ropener-VAL3100-2.4.1.factory.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.1/Ropener-VAL3100-2.4.1.factory.bin) | [`Ropener-VAL3100-2.4.1.ota.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.1/Ropener-VAL3100-2.4.1.ota.bin) |
+| **VAL3000** | ESP32-**C3** | [`Ropener-VAL3000-2.4.1.yml`](https://github.com/Valar-Systems/Ropener/blob/main/firmware/VAL3000/Ropener-VAL3000-2.4.1.yml) | [`Ropener-VAL3000-2.4.1.factory.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.1/Ropener-VAL3000-2.4.1.factory.bin) | [`Ropener-VAL3000-2.4.1.ota.bin`](https://github.com/Valar-Systems/Ropener/releases/download/v2.4.1/Ropener-VAL3000-2.4.1.ota.bin) |
 
 > ⚠️ **The board variants are not interchangeable.** The C3 and C6 use different GPIO pin assignments, so flashing the wrong board's YAML or binary will leave the buttons and motor mis-wired. If you're not sure which board you have, check the silk-screen label on the PCB.
 
@@ -129,7 +129,7 @@ If the device already runs Ropener firmware and is on your network, this is the 
 
 1. Open the device's control page (`http://ropener-XXXXXX.local`) in any browser on the same network.
 2. Scroll to the **OTA Update** card.
-3. Click **Choose File** and select the new **OTA image** — your board's `*.ota.bin` (e.g. `Ropener-VAL3100-2.4.0.ota.bin`), **not** the `*.factory.bin`.
+3. Click **Choose File** and select the new **OTA image** — your board's `*.ota.bin` (e.g. `Ropener-VAL3100-2.4.1.ota.bin`), **not** the `*.factory.bin`.
 4. Click **Update**. The device flashes the new build and reboots; your Wi-Fi and saved settings are kept.
 
 > 💡 You can push the same OTA from the ESPHome CLI/Dashboard instead (Path B, over the network) — handy for scripting or bulk updates.
@@ -138,7 +138,7 @@ If the device already runs Ropener firmware and is on your network, this is the 
 
 Each board folder ships a pre-compiled `*.factory.bin`, so you can flash without installing ESPHome or compiling anything.
 
-1. Download your board's `*.factory.bin` from [Section 3](#3-which-yaml-file-is-mine) (e.g. `Ropener-VAL3100-2.4.0.factory.bin`).
+1. Download your board's `*.factory.bin` from [Section 3](#3-which-yaml-file-is-mine) (e.g. `Ropener-VAL3100-2.4.1.factory.bin`).
 2. Plug the device into your computer over USB.
 3. Go to **[web.esphome.io](https://web.esphome.io)** in Chrome or Edge and click **Connect**; pick the device's serial port.
 4. Click **Install**, choose the `.factory.bin` you downloaded, and let it flash.
@@ -153,15 +153,15 @@ Use this to customize the firmware, or to update over Wi-Fi (OTA) after the firs
 2. Save the correct YAML for your board ([Section 3](#3-which-yaml-file-is-mine)) locally and edit the device name ([Section 4](#4-what-you-may-and-may-not-change)).
 3. Compile and flash in one step:
    ```bash
-   esphome run Ropener-VAL3100-2.4.0.yml
+   esphome run Ropener-VAL3100-2.4.1.yml
    ```
    The first time, choose the **USB/serial** port. Once the device is on your network the same command offers an **OTA (Over-The-Air)** option — no cable needed.
 4. Watch the boot log to confirm it came up cleanly:
    ```bash
-   esphome logs Ropener-VAL3100-2.4.0.yml
+   esphome logs Ropener-VAL3100-2.4.1.yml
    ```
 
-> 🔧 **Flashing a customized build through the browser?** Run `esphome compile Ropener-VAL3100-2.4.0.yml` to produce your own `*.factory.bin` (ESPHome writes it under `.esphome/build/<device-name>/…`), then flash it with Path A from step 2.
+> 🔧 **Flashing a customized build through the browser?** Run `esphome compile Ropener-VAL3100-2.4.1.yml` to produce your own `*.factory.bin` (ESPHome writes it under `.esphome/build/<device-name>/…`), then flash it with Path A from step 2.
 
 > 📝 **Wi-Fi survives updates.** Re-flashing does **not** erase your saved Wi-Fi network or your runtime settings — they live in a separate area of flash. You only re-provision Wi-Fi after a deliberate Wi-Fi reset (hold Button 3, see the [User Guide](User-Guide#9-resetting-wi-fi)).
 

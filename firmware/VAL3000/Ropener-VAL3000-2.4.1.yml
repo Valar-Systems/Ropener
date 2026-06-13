@@ -1,10 +1,10 @@
 # =============================================================================
 # Ropener — ESPHome firmware
-# Version: 2.4.0
+# Version: 2.4.1
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a poly rope using a
-# TMC2209-driven stepper motor on an ESP32-C6. Control it via a browser at
+# TMC2209-driven stepper motor on an ESP32-C3. Control it via a browser at
 # http://ropener-XXXXXX.local (where XXXXXX is the last 3 bytes of the
 # device's MAC address — printed on the serial log at boot). No Home Assistant
 # required. Can also pair with Home Assistant over the native ESPHome API. Supports a 0..1 position
@@ -14,22 +14,22 @@
 # -----------------------------------------------------------------------------
 # Hardware
 # -----------------------------------------------------------------------------
-#   MCU     : ESP32-C6 (esp32-c6-devkitc-1, esp-idf framework)
+#   MCU     : ESP32-C3 (esp32-c3-devkitm-1, esp-idf framework)
 #   Driver  : TMC2209 stepper driver, single-wire UART control (PDN_UART)
 #   Motor   : NEMA-17 stepper, 200 full steps/rev, 8x microstepping = 1600 steps/rev
 #   Gearing : MK7 drive gear, ~3.7699 cm of rope per revolution
 #
 # -----------------------------------------------------------------------------
-# GPIO wiring (ESP32-C6 -> TMC2209 / buttons)
+# GPIO wiring (ESP32-C3 -> TMC2209 / buttons)
 # -----------------------------------------------------------------------------
-#   GPIO0 : UART RX  <- TMC2209 PDN_UART
+#   GPIO0 : INDEX  (TMC2209 step-counter output, informational)
 #   GPIO1 : DIAG   (TMC2209 StallGuard / diagnostic output -> on_stall)
-#   GPIO3 : Button 1  (close / home), active-low pushbutton to GND
-#   GPIO4 : Button 3  (Wi-Fi reset),  active-low pushbutton to GND
-#   GPIO5 : ENN    (TMC2209 enable, active-low)
+#   GPIO3 : Button 2  (open),         active-low pushbutton to GND
+#   GPIO4 : Button 1  (close / home), active-low pushbutton to GND
+#   GPIO5 : UART RX  <- TMC2209 PDN_UART
 #   GPIO6 : UART TX  -> TMC2209 PDN_UART
-#   GPIO7 : INDEX  (TMC2209 step-counter output, informational)
-#   GPIO8 : Button 2  (open),         active-low pushbutton to GND
+#   GPIO7 : Button 3  (Wi-Fi reset),  active-low pushbutton to GND
+#   GPIO8 : ENN    (TMC2209 enable, active-low)
 #
 # -----------------------------------------------------------------------------
 # Position / motion model
@@ -68,12 +68,12 @@
 #   Any press of Button 1 or Button 2 while the cover is OPENING or CLOSING
 #   stops the motor (and leaves the position where it is).
 #
-#   Button 1 (GPIO3):
+#   Button 1 (GPIO4):
 #     - Short press (50 ms - 1 s)   : close cover    (or stop, or cancel HOMING)
 #     - Long  press (3 s - 10 s)    : start homing   (or stop, or cancel HOMING)
-#   Button 2 (GPIO8):
+#   Button 2 (GPIO3):
 #     - Release                     : open cover     (or stop if moving)
-#   Button 3 (GPIO4):
+#   Button 3 (GPIO7):
 #     - Long  press (3 s - 10 s)    : clear saved Wi-Fi credentials + reboot
 #
 # -----------------------------------------------------------------------------
@@ -284,6 +284,10 @@ substitutions:
   # `microsteps:` value passed to tmc2209.configure in on_boot.
   steps_per_revolution: "1600"
 
+  # Firmware version — single source of truth. Feeds project.version (below) and
+  # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
+  firmware_version: "2.4.1"
+
 # -----------------------------------------------------------------------------
 # Native ESPHome API (Home Assistant integration)
 # -----------------------------------------------------------------------------
@@ -348,7 +352,7 @@ web_server:
 # Board / Wi-Fi
 # -----------------------------------------------------------------------------
 esp32:
-  variant: esp32c6
+  variant: esp32c3
   framework:
     type: esp-idf
 
@@ -374,9 +378,7 @@ captive_portal:
 
 # Improv Wi-Fi provisioning over USB serial — lets tools like web.esphome.io
 # push Wi-Fi credentials without editing secrets.yaml or using the hotspot.
-# Note: unlike the ESP32-C3, the ESP32-C6 has Bluetooth LE, so esp32_improv
-# (BLE provisioning) is also available here if desired — serial is kept for
-# simplicity and because it needs no extra app.
+# Note: esp32_improv_ble is not supported on ESP32-C3 with esp-idf.
 improv_serial:
 
 # -----------------------------------------------------------------------------
@@ -426,7 +428,7 @@ esphome:
   # which build is running. Bump `version` on every released change.
   project:
     name: "valar-systems.ropener"
-    version: "2.4.0"
+    version: "${firmware_version}"
   on_boot:
     - script.execute: recompute_distance     # resync derived step count from the persisted cm
     - tmc2209.configure:
@@ -468,6 +470,9 @@ esphome:
         // the right place after a reboot.
         id(sun_sun)->set_latitude(id(global_latitude));
         id(sun_sun)->set_longitude(id(global_longitude));
+    - text_sensor.template.publish:        # surface the firmware version on the web UI / HA
+        id: firmware_version_text
+        state: "${firmware_version}"
 
 # -----------------------------------------------------------------------------
 # UART to TMC2209 (PDN_UART, single-wire)
@@ -476,7 +481,7 @@ esphome:
 # round-trips for the 1 s polled diagnostic sensors.
 uart:
   tx_pin: 6
-  rx_pin: 0
+  rx_pin: 5
   baud_rate: 500000
 
 # -----------------------------------------------------------------------------
@@ -495,8 +500,8 @@ stepper:
     config_dump_include_registers: false    # dump TMC2209 registers in the boot log for debugging
     rsense: 100 mOhm
     vsense: False
-    enn_pin: 5                             # active-low driver enable
-    index_pin: 7                           # step-counter feedback (unused but wired)
+    enn_pin: 8                             # active-low driver enable
+    index_pin: 0                           # step-counter feedback (unused but wired)
     diag_pin: 1                            # StallGuard / fault output -> on_stall
     on_stall:
       - stepper.stop: driver               # halt motion immediately
@@ -543,7 +548,7 @@ binary_sensor:
       sorting_group_id: group_diagnostics
     id: btn1
     pin:
-      number: 3
+      number: 4
       mode: INPUT
       inverted: true
     filters:
@@ -635,7 +640,7 @@ binary_sensor:
       sorting_group_id: group_diagnostics
     id: btn2
     pin:
-      number: 8
+      number: 3
       mode: INPUT
       inverted: true
     filters:
@@ -652,7 +657,7 @@ binary_sensor:
             else:
               - cover.open: ropener_cover
 
-  # Button 3 (GPIO4): Wi-Fi reset.
+  # Button 3 (GPIO7): Wi-Fi reset.
   # Hold 3-10 s to erase the saved Wi-Fi credentials and reboot. A long hold
   # is required (not a quick tap) so the device can't be knocked offline by an
   # accidental press. On reboot the device re-runs Wi-Fi setup: with no
@@ -666,7 +671,7 @@ binary_sensor:
       sorting_group_id: group_diagnostics
     id: btn_wifi_reset
     pin:
-      number: 4
+      number: 7
       mode: INPUT
       inverted: true
     filters:
@@ -1218,6 +1223,19 @@ text_sensor:
         case 3: return {"HOMING"};
         default: return {"IDLE"};
       }
+
+  # Firmware version string, shown in the Diagnostics group of the web UI and in
+  # Home Assistant device info. Static value published once from esphome.on_boot;
+  # `update_interval: never` so it isn't re-polled.
+  - platform: template
+    name: "Firmware Version"
+    id: firmware_version_text
+    icon: "mdi:chip"
+    entity_category: DIAGNOSTIC
+    web_server:
+      sorting_weight: 4
+      sorting_group_id: group_diagnostics
+    update_interval: never
 
 # -----------------------------------------------------------------------------
 # Motion-completion poll
