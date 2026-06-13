@@ -4,7 +4,7 @@
 
 ---
 
-Ropener is a Wi-Fi connected curtain/cover controller. It pulls a beaded rope with a small stepper motor to open and close your curtains. You can control it from any web browser on your network — no Home Assistant or cloud account required — or pair it with Home Assistant if you use one. It supports a daily open/close schedule (by fixed clock times or sunrise/sunset), automatic position calibration, and several tuning options.
+Ropener is a Wi-Fi connected curtain/cover controller. It pulls a poly rope with a small stepper motor to open and close your curtains. You can control it from any web browser on your network — no Home Assistant or cloud account required — or pair it with Home Assistant if you use one. It supports a daily open/close schedule (by fixed clock times or sunrise/sunset), automatic position calibration, and several tuning options.
 
 ---
 

@@ -14,6 +14,7 @@
 - [📋 Bill of Materials](https://github.com/Valar-Systems/Ropener/blob/main/docs/BOM-V2.0.md)
 
 **Firmware & Use**
+- [⚙️ Firmware Guide](Firmware-Guide)
 - [⚙️ ESPHome Guide](ESPHome-guide)
 - [📖 User Guide](User-Guide)
 

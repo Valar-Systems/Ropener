@@ -3,7 +3,7 @@
 # Version: 2.4.0
 # =============================================================================
 #
-# A Wi-Fi connected curtain/cover controller that pulls a beaded rope using a
+# A Wi-Fi connected curtain/cover controller that pulls a poly rope using a
 # TMC2209-driven stepper motor on an ESP32-C6. Control it via a browser at
 # http://ropener-XXXXXX.local (where XXXXXX is the last 3 bytes of the
 # device's MAC address — printed on the serial log at boot). No Home Assistant

@@ -178,7 +178,7 @@ url.font.color.rgb = GREY
 
 intro = doc.add_paragraph()
 intro.add_run(
-    "Ropener is a Wi-Fi connected curtain/cover controller. It pulls a beaded "
+    "Ropener is a Wi-Fi connected curtain/cover controller. It pulls a poly "
     "rope with a small stepper motor to open and close your curtains. You can "
     "control it from any web browser on your network — no Home Assistant or "
     "cloud account required — or pair it with Home Assistant if you use one. "
