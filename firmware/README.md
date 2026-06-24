@@ -23,9 +23,25 @@ Be sure the state is correct in the settings when the device is moving.
 
 <img width="337" height="497" alt="state" src="https://github.com/user-attachments/assets/a2ca4c58-d079-48ff-a29f-1bfab5c8ef15" />
 
-Once everything is set, you have to manually set the home position. There are 2 ways to do this.
+Once everything is set, you have to manually set the home position. There are 3 ways to do this.
 
 1. In the settings, under Diagnostic, there is a "Start-Stop Homing" button. Press it and it will begin to close the curtain. Press it again to stop the curtain. This will now be the zero position.
-2. Option 2. Long press and hold the left button on the motor for 3-10 seconds. Once you let go, it will begin to close the curtain. Single-press the same button again to stop it, this will stop the motor and set the position to zero. 
+2. Tap the left button (Button 1) on the motor **seven times quickly**. It will begin to close the curtain. Press either button once to stop it — this stops the motor and sets the position to zero.
+3. Move the curtain to the spot you want to call "closed" (use hold-to-run, below), then **hold both buttons at once for 3 seconds**. The current position is set as home (0) without driving into the end stop.
 
-It should now be homed to position 0, and when you press the open button, it should travel the centimeters distance you set in the settings. 
+It should now be homed to position 0, and when you press the open button, it should travel the centimeters distance you set in the settings.
+
+## Button controls
+
+| Gesture | Action |
+| --- | --- |
+| Tap Button 1 (close) | Close the curtain |
+| Tap Button 2 (open) | Open the curtain |
+| Press & hold Button 1 | Close **only while held** — stops the instant you let go, and stops automatically at the closed end |
+| Press & hold Button 2 | Open **only while held** — stops the instant you let go, and stops automatically at the open end |
+| Tap Button 1 seven times quickly | Start homing |
+| Hold both buttons for 3 seconds | Set the current position as home (0) |
+| Any press while the curtain is moving | Stops it instantly |
+| Any press while homing | Stops it and sets the position to zero |
+
+Hold-to-run is the child- and elderly-friendly mode: the curtain only moves while you keep the button pressed, so it can't run on its own into a person or a cord, and it never drives past the open or closed ends.
