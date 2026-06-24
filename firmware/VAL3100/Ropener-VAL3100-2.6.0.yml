@@ -1,6 +1,6 @@
 # =============================================================================
 # Ropener — ESPHome firmware
-# Version: 2.5.0
+# Version: 2.6.0
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a poly rope using a
@@ -468,7 +468,7 @@ substitutions:
 
   # Firmware version — single source of truth. Feeds project.version (below) and
   # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
-  firmware_version: "2.5.0"
+  firmware_version: "2.6.0"
 
   # Physical-button gesture timing (ms). Compile-time, not runtime-tunable.
   #   hold_run_ms  : a press held longer than this engages hold-to-run; shorter
@@ -493,9 +493,19 @@ substitutions:
 #     key: !secret api_key
 api:
 
-# Over-the-air firmware updates via the ESPHome platform.
+# Over-the-air firmware updates. The `esphome` platform handles uploads from the
+# ESPHome dashboard / CLI; the `http_request` platform powers the "Update
+# Firmware (GitHub)" button, which pulls the latest released binary from GitHub.
 ota:
   - platform: esphome
+  - platform: http_request
+
+# HTTP client used by the GitHub OTA button. verify_ssl is off so we don't have
+# to bundle and refresh a CA certificate; the tradeoff is no certificate
+# verification on the download. The timeout is generous (the image is ~1 MB).
+http_request:
+  verify_ssl: false
+  timeout: 10min
 
 # UART logger. By default ESPHome logs one DEBUG line per entity publish, so
 # the chatty `number` / `text_sensor` / `sensor` entities (which re-publish on
@@ -1138,6 +1148,23 @@ button:
             - stepper.set_target:
                 id: driver
                 target: -100000
+
+  # Pull the latest released firmware for this model straight from GitHub and
+  # flash it over the air. Points at the version-less "latest" asset so the URL
+  # never changes between releases; the device downloads, flashes, and reboots.
+  - platform: template
+    name: "Update Firmware (GitHub)"
+    web_server:
+      sorting_weight: 5
+      sorting_group_id: group_diagnostics
+    entity_category: DIAGNOSTIC
+    on_press:
+      - logger.log: "Checking GitHub for the latest firmware..."
+      - ota.http_request.flash:
+          # Version-less "latest" assets (published with every release): the OTA
+          # image plus a text file holding its MD5, which the flash verifies.
+          md5_url: https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3100.ota.bin.md5
+          url: https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3100.ota.bin
 
 
 # -----------------------------------------------------------------------------
