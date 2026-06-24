@@ -45,3 +45,10 @@ It should now be homed to position 0, and when you press the open button, it sho
 | Any press while homing | Stops it and sets the position to zero |
 
 Hold-to-run is the child- and elderly-friendly mode: the curtain only moves while you keep the button pressed, so it can't run on its own into a person or a cord, and it never drives past the open or closed ends.
+
+## Updating the firmware
+
+Two ways to update:
+
+- **Over the air, from the device:** open the settings page and, under Diagnostics, press **"Update Firmware (GitHub)"**. The device downloads the latest release for its model straight from GitHub, flashes itself, and reboots — no computer needed. (Requires an internet connection.)
+- **Manually:** download the `*.ota.bin` (for a device already on your network) or `*.factory.bin` (for a fresh USB flash) for your model from the [latest release](https://github.com/Valar-Systems/Ropener/releases/latest) and upload it as before.
