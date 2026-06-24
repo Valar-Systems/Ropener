@@ -1,6 +1,6 @@
 # =============================================================================
 # Ropener — ESPHome firmware
-# Version: 2.4.1
+# Version: 2.5.0
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a poly rope using a
@@ -56,23 +56,32 @@
 #   on_stall handler. That handler stops the motor and zeroes the position.
 #
 #   Manual re-home (drives motor toward closed end until StallGuard fires):
-#     - Long-press (3-10 s) Button 1, OR
-#     - Press the "Start Homing" diagnostic button.
-#   Homing can be cancelled by:
-#     - Any press of Button 1 while HOMING, OR
-#     - Pressing the "Start Homing" button again while HOMING.
+#     - Tap Button 1 seven times quickly, OR
+#     - Press the "Start-Stop Homing" diagnostic button.
+#   Homing can be cancelled (stops the motor and zeroes the position) by:
+#     - Any press of Button 1 OR Button 2 while HOMING, OR
+#     - Pressing the "Start-Stop Homing" button again while HOMING.
 #
 # -----------------------------------------------------------------------------
 # Buttons (physical, on the device)
 # -----------------------------------------------------------------------------
-#   Any press of Button 1 or Button 2 while the cover is OPENING or CLOSING
-#   stops the motor (and leaves the position where it is).
+#   Safety rules that always win, whatever the gesture:
+#     - A press while OPENING/CLOSING stops the motor in place.
+#     - A press while HOMING stops the motor and zeroes the position.
+#   Holding a button to move only runs while held and the motor auto-stops at
+#   the 0 % / 100 % end — it cannot be driven past the limit.
 #
 #   Button 1 (GPIO4):
-#     - Short press (50 ms - 1 s)   : close cover    (or stop, or cancel HOMING)
-#     - Long  press (3 s - 10 s)    : start homing   (or stop, or cancel HOMING)
+#     - Tap (quick press/release)   : close cover (to 0 %)
+#     - Press and hold              : close while held; auto-stops at 0 %, and
+#                                     stops early on release (hold-to-run)
+#     - Seven quick taps            : start homing
 #   Button 2 (GPIO3):
-#     - Release                     : open cover     (or stop if moving)
+#     - Tap (quick press/release)   : open cover (to 100 %)
+#     - Press and hold              : open while held; auto-stops at 100 %, and
+#                                     stops early on release (hold-to-run)
+#   Button 1 + Button 2 together:
+#     - Hold both for 3 s           : set the current position as home (0)
 #   Button 3 (GPIO7):
 #     - Long  press (3 s - 10 s)    : clear saved Wi-Fi credentials + reboot
 #
@@ -198,7 +207,7 @@ globals:
   #   3 = HOMING   driving toward a sentinel target, waiting for StallGuard
   # Mirrored to HA via the "State" text_sensor. Transitions back to IDLE:
   #   OPENING/CLOSING  -> polling interval sees current_position == target
-  #   HOMING           -> on_stall (real stall) OR any Button 1 press (cancel)
+  #   HOMING           -> on_stall (real stall) OR any button press (cancel)
   - id: global_state
     type: int
     restore_value: no
@@ -252,6 +261,51 @@ globals:
     restore_value: no
     initial_value: '-1'
 
+  # --- Physical-button gesture state (runtime only, never persisted) ---
+  # Live pressed-state of each front button, kept current by on_press/on_release
+  # so a gesture handler can ask "is the other button also down?".
+  - id: b1_down
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: b2_down
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # True while a button's hold-to-run is engaged (B1 = closing, B2 = opening).
+  # Releasing the button while this is set stops the motor.
+  - id: b1_hold_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: b2_hold_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Set when a press was already acted on at press-time (stop / homing-cancel /
+  # set-home combo / hold engage) so its release does nothing further.
+  - id: b1_consumed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: b2_consumed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  # Rapid-tap counter for the Button 1 "7 quick taps -> start homing" gesture,
+  # plus the millis() timestamp of the last tap used to reset a stale chain.
+  - id: b1_tap_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: b1_last_tap_ms
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
 # -----------------------------------------------------------------------------
 # Derived-value recompute
 # -----------------------------------------------------------------------------
@@ -271,6 +325,134 @@ script:
           id: global_distance_steps
           value: !lambda "return (float(id(global_distance_cm)) / ${gear_distance_cm}) * ${steps_per_revolution};"
 
+  # ---------------------------------------------------------------------------
+  # Physical-button helpers
+  # ---------------------------------------------------------------------------
+  # The two front buttons drive several overlapping gestures (tap, hold-to-run,
+  # the 7-tap homing trigger and the two-button "set home" combo). To keep the
+  # motor from lurching while a gesture is still being classified, each press is
+  # sorted out in the binary_sensor on_press/on_release handlers (further down)
+  # and the resulting motion is funnelled through these named scripts.
+
+  # Begin sensorless homing: drive toward the closed end until StallGuard fires
+  # (caught by the stepper's on_stall handler, which zeroes the position).
+  # -100000 is a "go forever" sentinel well past the longest possible travel.
+  - id: start_homing
+    then:
+      - globals.set:
+          id: global_state
+          value: "3"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: CLOSING
+      - stepper.report_position:
+          id: driver
+          position: 0
+      - stepper.set_target:
+          id: driver
+          target: -100000
+      - logger.log: "Starting homing"
+
+  # Declare the current position as home (0): halt, zero the step counter and
+  # return to IDLE. Used by the two-button combo and to cancel a homing run.
+  - id: set_home_zero
+    then:
+      - stepper.stop: driver
+      - stepper.report_position:
+          id: driver
+          position: 0
+      - stepper.set_target:
+          id: driver
+          target: 0
+      - globals.set:
+          id: global_state
+          value: "0"
+      - cover.template.publish:
+          id: ropener_cover
+          current_operation: IDLE
+      - logger.log: "Home position set to 0"
+
+  # Hold-to-run engage. Armed on press, fired after hold_run_ms; only engages if
+  # the button is still held ALONE from IDLE, so a quick tap or the two-button
+  # combo never trips it. restart mode so a fresh press re-arms the timer.
+  # cover.close / cover.open target the configured ends (0 % / 100 %), so the
+  # motor stops at the limit and can never run past it — holding only governs
+  # stopping EARLY, on release (handled in on_release).
+  - id: b1_hold_check
+    mode: restart
+    then:
+      - delay: ${hold_run_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(b1_down) && !id(b2_down) && id(global_state) == 0 && id(b1_tap_count) < 7;'
+          then:
+            - globals.set:
+                id: b1_hold_active
+                value: "true"
+            - globals.set:
+                id: b1_consumed
+                value: "true"
+            - cover.close: ropener_cover
+            - logger.log: "Button 1 held: closing while held"
+  - id: b2_hold_check
+    mode: restart
+    then:
+      - delay: ${hold_run_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(b2_down) && !id(b1_down) && id(global_state) == 0;'
+          then:
+            - globals.set:
+                id: b2_hold_active
+                value: "true"
+            - globals.set:
+                id: b2_consumed
+                value: "true"
+            - cover.open: ropener_cover
+            - logger.log: "Button 2 held: opening while held"
+
+  # Single-tap close for Button 1. Deferred by tap_window_ms after release so a
+  # rapid burst (the 7-tap homing gesture) can chain without the motor moving
+  # between taps; each new press cancels the pending commit. Commits the close
+  # only if we are still IDLE and the burst never reached 7. Always clears the
+  # tap counter so the next press starts a fresh chain.
+  - id: b1_tap_commit
+    mode: restart
+    then:
+      - delay: ${tap_window_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(global_state) == 0 && id(b1_tap_count) < 7;'
+          then:
+            - cover.close: ropener_cover
+            - logger.log: "Button 1 tap: closing"
+      - globals.set:
+          id: b1_tap_count
+          value: "0"
+
+  # Two-button "set home" combo: armed whenever both buttons are down, fired
+  # after combo_home_ms. If both are still held, zero the position. restart mode
+  # keeps the latest both-down moment as the start of the window.
+  - id: combo_home
+    mode: restart
+    then:
+      - delay: ${combo_home_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(b1_down) && id(b2_down);'
+          then:
+            - script.execute: set_home_zero
+            - globals.set:
+                id: b1_consumed
+                value: "true"
+            - globals.set:
+                id: b2_consumed
+                value: "true"
+            - globals.set:
+                id: b1_tap_count
+                value: "0"
+            - logger.log: "Both buttons held: home position set"
+
 # -----------------------------------------------------------------------------
 # Mechanical constants
 # -----------------------------------------------------------------------------
@@ -286,7 +468,20 @@ substitutions:
 
   # Firmware version — single source of truth. Feeds project.version (below) and
   # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
-  firmware_version: "2.4.1"
+  firmware_version: "2.5.0"
+
+  # Physical-button gesture timing (ms). Compile-time, not runtime-tunable.
+  #   hold_run_ms  : a press held longer than this engages hold-to-run; shorter
+  #                  is treated as a tap. Long enough that a deliberate tap is
+  #                  never mistaken for a hold.
+  #   tap_window_ms: rapid taps must arrive within this gap of each other to
+  #                  chain toward the 7-tap homing gesture; it also defers the
+  #                  single-tap close by this long so a burst can complete
+  #                  without the motor twitching between taps.
+  #   combo_home_ms: both buttons must be held together this long to set home.
+  hold_run_ms: "700"
+  tap_window_ms: "400"
+  combo_home_ms: "3000"
 
 # -----------------------------------------------------------------------------
 # Native ESPHome API (Home Assistant integration)
@@ -535,11 +730,19 @@ stepper:
 # Physical buttons
 # -----------------------------------------------------------------------------
 # Both buttons are wired to GND through their pin (active-low) and use a 10 ms
-# debounce filter. Button 1 is overloaded: a quick tap closes, a long hold
-# starts homing. While the cover is OPENING/CLOSING, any press of either
-# button stops the motor in place — the moving state itself overrides the
-# default open/close action. The two on_click ranges are mutually exclusive
-# so the close action never fires alongside the home action.
+# debounce filter. Each press is classified in on_press/on_release rather than
+# acted on immediately, so the overlapping gestures (tap, hold-to-run, the
+# 7-tap homing trigger and the two-button "set home" combo) never make the
+# motor lurch mid-gesture. The resulting motion is funnelled through the
+# "Physical-button helpers" scripts defined earlier. Safety rules that always
+# win: a press while OPENING/CLOSING stops the motor in place, and a press
+# while HOMING stops it and zeroes the position. Gesture map:
+#   Button 1  tap            -> close to 0 %
+#   Button 1  hold           -> close while held (auto-stops at 0 %)
+#   Button 1  x7 quick taps  -> start homing
+#   Button 2  tap            -> open to 100 %
+#   Button 2  hold           -> open while held (auto-stops at 100 %)
+#   Button 1 + 2 held 3 s    -> set current position as home (0)
 binary_sensor:
   - platform: gpio
     name: Button 1
@@ -553,85 +756,124 @@ binary_sensor:
       inverted: true
     filters:
       - delayed_on: 10ms
-    on_click:
-      # Short tap:
-      #   HOMING            -> cancel homing
-      #   OPENING/CLOSING   -> stop the motor (any press stops mid-motion)
-      #   IDLE              -> close the cover
-      - min_length: 50ms
-        max_length: 1000ms
-        then:
-          - if:
-              condition:
-                lambda: 'return id(global_state) == 3;'
-              then:
-                - stepper.stop: driver
-                - stepper.report_position:
-                    id: driver
-                    position: 0
-                - stepper.set_target:
-                    id: driver
-                    target: 0
-                - globals.set:
-                    id: global_state
-                    value: "0"
-                - cover.template.publish:
-                    id: ropener_cover
-                    current_operation: IDLE
-                - logger.log: "Homing cancelled"
-              else:
-                - if:
-                    condition:
-                      lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
-                    then:
-                      - cover.stop: ropener_cover
-                    else:
-                      - cover.close: ropener_cover
-      # Long press (3-10 s):
-      #   HOMING            -> cancel homing
-      #   OPENING/CLOSING   -> stop the motor
-      #   IDLE              -> start sensorless homing (StallGuard locates 0)
-      - min_length: 3000ms
-        max_length: 10000ms
-        then:
-          - if:
-              condition:
-                lambda: 'return id(global_state) == 3;'
-              then:
-                - stepper.stop: driver
-                - stepper.report_position:
-                    id: driver
-                    position: 0
-                - stepper.set_target:
-                    id: driver
-                    target: 0
-                - globals.set:
-                    id: global_state
-                    value: "0"
-                - cover.template.publish:
-                    id: ropener_cover
-                    current_operation: IDLE
-                - logger.log: "Homing cancelled"
-              else:
-                - if:
-                    condition:
-                      lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
-                    then:
-                      - cover.stop: ropener_cover
-                    else:
-                      - globals.set:
-                          id: global_state
-                          value: "3"
-                      - cover.template.publish:
-                          id: ropener_cover
-                          current_operation: CLOSING
-                      - stepper.report_position:
-                          id: driver
-                          position: 0
-                      - stepper.set_target:
-                          id: driver
-                          target: -100000
-                      - logger.log: "Starting homing"
+    # Button 1 (close / homing). on_press sorts the press by motion state and by
+    # whether Button 2 is also down; on_release ends a hold-to-run or commits a
+    # deferred tap. See the "Physical-button helpers" scripts above.
+    on_press:
+      - globals.set:
+          id: b1_down
+          value: "true"
+      - if:
+          # HOMING -> any button press stops the motor and zeroes the position.
+          condition:
+            lambda: 'return id(global_state) == 3;'
+          then:
+            - script.stop: b1_hold_check
+            - script.stop: b1_tap_commit
+            - script.execute: set_home_zero
+            - globals.set:
+                id: b1_consumed
+                value: "true"
+            - globals.set:
+                id: b1_tap_count
+                value: "0"
+            - logger.log: "Homing cancelled (Button 1)"
+          else:
+            - if:
+                # OPENING/CLOSING -> any press stops the motor in place.
+                condition:
+                  lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
+                then:
+                  - script.stop: b1_hold_check
+                  - script.stop: b1_tap_commit
+                  - cover.stop: ropener_cover
+                  - globals.set:
+                      id: b1_consumed
+                      value: "true"
+                  - globals.set:
+                      id: b1_tap_count
+                      value: "0"
+                else:
+                  - if:
+                      # Both buttons down -> arm the "set home" combo, motor still.
+                      condition:
+                        lambda: 'return id(b2_down);'
+                      then:
+                        - script.stop: b1_hold_check
+                        - script.stop: b2_hold_check
+                        - script.stop: b1_tap_commit
+                        - cover.stop: ropener_cover
+                        - globals.set:
+                            id: b1_hold_active
+                            value: "false"
+                        - globals.set:
+                            id: b2_hold_active
+                            value: "false"
+                        - globals.set:
+                            id: b1_consumed
+                            value: "true"
+                        - globals.set:
+                            id: b2_consumed
+                            value: "true"
+                        - script.execute: combo_home
+                      else:
+                        # IDLE, single button: count toward the 7-tap homing
+                        # gesture, then either start homing or arm hold-to-run.
+                        - script.stop: b1_tap_commit
+                        - lambda: |-
+                            uint32_t now = millis();
+                            if (now - id(b1_last_tap_ms) > ${tap_window_ms}) id(b1_tap_count) = 0;
+                            id(b1_tap_count) += 1;
+                            id(b1_last_tap_ms) = now;
+                        - globals.set:
+                            id: b1_consumed
+                            value: "false"
+                        - if:
+                            condition:
+                              lambda: 'return id(b1_tap_count) >= 7;'
+                            then:
+                              - script.stop: b1_hold_check
+                              - globals.set:
+                                  id: b1_tap_count
+                                  value: "0"
+                              - globals.set:
+                                  id: b1_consumed
+                                  value: "true"
+                              - script.execute: start_homing
+                              - logger.log: "Button 1 x7: starting homing"
+                            else:
+                              - script.execute: b1_hold_check
+    on_release:
+      - globals.set:
+          id: b1_down
+          value: "false"
+      - script.stop: b1_hold_check     # released before hold engaged -> no hold
+      - script.stop: combo_home        # both no longer held -> abort combo
+      - if:
+          condition:
+            lambda: 'return id(b1_hold_active);'
+          then:
+            # Hold-to-run was running -> stop where it is.
+            - cover.stop: ropener_cover
+            - globals.set:
+                id: b1_hold_active
+                value: "false"
+            - globals.set:
+                id: b1_consumed
+                value: "false"
+            - logger.log: "Button 1 released: stopped"
+          else:
+            - if:
+                # Already handled at press-time (stop / cancel / combo): do nothing.
+                condition:
+                  lambda: 'return id(b1_consumed);'
+                then:
+                  - globals.set:
+                      id: b1_consumed
+                      value: "false"
+                else:
+                  # Candidate tap -> commit after the window unless a burst chains on.
+                  - script.execute: b1_tap_commit
 
   - platform: gpio
     name: Button 2
@@ -645,17 +887,98 @@ binary_sensor:
       inverted: true
     filters:
       - delayed_on: 10ms
+    # Button 2 (open). Same press classification as Button 1, minus the 7-tap
+    # homing gesture, so a tap can open immediately on release.
+    on_press:
+      - globals.set:
+          id: b2_down
+          value: "true"
+      - if:
+          # HOMING -> any button press stops the motor and zeroes the position.
+          condition:
+            lambda: 'return id(global_state) == 3;'
+          then:
+            - script.stop: b2_hold_check
+            - script.execute: set_home_zero
+            - globals.set:
+                id: b2_consumed
+                value: "true"
+            - logger.log: "Homing cancelled (Button 2)"
+          else:
+            - if:
+                # OPENING/CLOSING -> any press stops the motor in place.
+                condition:
+                  lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
+                then:
+                  - script.stop: b2_hold_check
+                  - cover.stop: ropener_cover
+                  - globals.set:
+                      id: b2_consumed
+                      value: "true"
+                else:
+                  - if:
+                      # Both buttons down -> arm the "set home" combo, motor still.
+                      condition:
+                        lambda: 'return id(b1_down);'
+                      then:
+                        - script.stop: b1_hold_check
+                        - script.stop: b2_hold_check
+                        - script.stop: b1_tap_commit
+                        - cover.stop: ropener_cover
+                        - globals.set:
+                            id: b1_hold_active
+                            value: "false"
+                        - globals.set:
+                            id: b2_hold_active
+                            value: "false"
+                        - globals.set:
+                            id: b1_consumed
+                            value: "true"
+                        - globals.set:
+                            id: b2_consumed
+                            value: "true"
+                        - globals.set:
+                            id: b1_tap_count
+                            value: "0"
+                        - script.execute: combo_home
+                      else:
+                        # IDLE, single button: arm hold-to-run (open while held).
+                        - globals.set:
+                            id: b2_consumed
+                            value: "false"
+                        - script.execute: b2_hold_check
     on_release:
-      then:
-        # OPENING/CLOSING -> stop the motor; otherwise open the cover.
-        # HOMING is intentionally not handled here (only Button 1 cancels it).
-        - if:
-            condition:
-              lambda: 'return id(global_state) == 1 || id(global_state) == 2;'
-            then:
-              - cover.stop: ropener_cover
-            else:
-              - cover.open: ropener_cover
+      - globals.set:
+          id: b2_down
+          value: "false"
+      - script.stop: b2_hold_check     # released before hold engaged -> no hold
+      - script.stop: combo_home        # both no longer held -> abort combo
+      - if:
+          condition:
+            lambda: 'return id(b2_hold_active);'
+          then:
+            # Hold-to-run was running -> stop where it is.
+            - cover.stop: ropener_cover
+            - globals.set:
+                id: b2_hold_active
+                value: "false"
+            - globals.set:
+                id: b2_consumed
+                value: "false"
+            - logger.log: "Button 2 released: stopped"
+          else:
+            - if:
+                # Already handled at press-time (stop / cancel / combo): do nothing.
+                condition:
+                  lambda: 'return id(b2_consumed);'
+                then:
+                  - globals.set:
+                      id: b2_consumed
+                      value: "false"
+                else:
+                  # Quick tap -> open the cover (full travel to 100 %).
+                  - cover.open: ropener_cover
+                  - logger.log: "Button 2 tap: opening"
 
   # Button 3 (GPIO7): Wi-Fi reset.
   # Hold 3-10 s to erase the saved Wi-Fi credentials and reboot. A long hold
@@ -774,7 +1097,7 @@ button:
   # can locate the closed end. The on_stall handler on the stepper will catch
   # the impact and zero the position. -100000 is just a "go forever" sentinel;
   # pick a target well past the longest possible rope travel.
-  # (Same effect as a long press of Button 1.)
+  # (Same effect as tapping Button 1 seven times quickly.)
   # While HOMING, pressing this button instead stops the motor and zeroes the position.
   - platform: template
     name: "Start-Stop Homing"
@@ -1244,7 +1567,7 @@ text_sensor:
 # OPENING/CLOSING and current_position has caught up to target_position,
 # flip back to IDLE and tell the cover entity. HOMING is intentionally
 # excluded — its target (-100000) is a sentinel that's never reached;
-# HOMING ends via on_stall or a Button 1 cancel.
+# HOMING ends via on_stall or an either-button cancel.
 interval:
   - interval: 200ms
     then:
@@ -1264,6 +1587,16 @@ interval:
             - cover.template.publish:
                 id: ropener_cover
                 current_operation: IDLE
+            # Hold-to-run targets the configured ends (0 % / 100 %), so reaching
+            # the target here IS the limit: drop the hold flags so a still-held
+            # button does nothing more (it cannot drive past the end). The motor
+            # is already stopped at the target by the stepper itself.
+            - globals.set:
+                id: b1_hold_active
+                value: "false"
+            - globals.set:
+                id: b2_hold_active
+                value: "false"
 
   # ---------------------------------------------------------------------------
   # Sun schedule poll

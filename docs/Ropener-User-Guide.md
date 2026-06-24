@@ -84,13 +84,16 @@ Replace XXXXXX with your device's code (the same code shown in the setup hotspot
 
 ### Using the physical buttons
 
-The device has three buttons. While the cover is moving, a press of Button 1 or Button 2 simply stops it.
+The device has three buttons. While the cover is moving, a press of Button 1 or Button 2 stops it immediately. You can also press and hold a button to move the cover only while you hold it — it stops the moment you let go, and stops on its own at the fully open or closed end. This keeps it safe around children and the elderly: the cover never keeps moving on its own.
 
 | Button | Action | What it does |
 | --- | --- | --- |
-| Button 1 | Short press (about 1 sec) | Closes the cover (or stops it if moving). |
-| Button 1 | Long press (3–10 sec) | Starts homing / calibration (see Section 5). |
-| Button 2 | Press and release | Opens the cover (or stops it if moving). |
+| Button 1 | Tap | Closes the cover (or stops it if moving). |
+| Button 1 | Press and hold | Closes only while held; stops on release and at the closed end. |
+| Button 1 | Seven quick taps | Starts homing / calibration (see Section 5). |
+| Button 2 | Tap | Opens the cover (or stops it if moving). |
+| Button 2 | Press and hold | Opens only while held; stops on release and at the open end. |
+| Button 1 + Button 2 | Hold both 3 sec | Sets the current position as home / 0% (see Section 5). |
 | Button 3 | Long press (3–10 sec) | Clears saved Wi-Fi and reboots into setup (see Section 9). |
 
 ---
@@ -110,11 +113,13 @@ Run homing when:
 
 ### How to home (stop it yourself)
 
-1. Start homing: press and hold Button 1 for 3 to 10 seconds, or click the “Start-Stop Homing” button on the web page.
+1. Start homing: tap Button 1 **seven times quickly**, or click the “Start-Stop Homing” button on the web page.
 2. Watch the curtain drive toward the closed end.
-3. The instant it reaches the fully-closed position, press Stop — press Button 1 once, or click “Start-Stop Homing” again. This marks that spot as 0% (closed) and ends homing.
+3. The instant it reaches the fully-closed position, press Stop — press **either button** once, or click “Start-Stop Homing” again. This marks that spot as 0% (closed) and ends homing.
 
 The “State” reading on the web page shows **HOMING** while homing is running and returns to **IDLE** once you press Stop.
+
+**Gentler alternative (no straining against the stop):** use press-and-hold to inch the curtain to the fully-closed position, then hold both buttons together for 3 seconds. The device marks the current spot as home (0%) without driving into the end.
 
 ---
 
@@ -324,9 +329,12 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 
 | Physical button | Action |
 | --- | --- |
-| Button 1 – short press | Close (or stop if moving). |
-| Button 1 – long press | Start/cancel homing. |
-| Button 2 – release | Open (or stop if moving). |
+| Button 1 – tap | Close (or stop if moving). |
+| Button 1 – hold | Close while held (stops on release and at the closed end). |
+| Button 1 – seven quick taps | Start homing. |
+| Button 2 – tap | Open (or stop if moving). |
+| Button 2 – hold | Open while held (stops on release and at the open end). |
+| Both buttons – hold 3 sec | Set current position as home (0%). |
 | Button 3 – long press | Reset Wi-Fi and reboot to setup. |
 
 ---
