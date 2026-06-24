@@ -1,10 +1,10 @@
 # =============================================================================
 # Ropener — ESPHome firmware
-# Version: 2.6.0
+# Version: 2.6.1
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a poly rope using a
-# TMC2209-driven stepper motor on an ESP32-C3. Control it via a browser at
+# TMC2209-driven stepper motor on an ESP32-C6. Control it via a browser at
 # http://ropener-XXXXXX.local (where XXXXXX is the last 3 bytes of the
 # device's MAC address — printed on the serial log at boot). No Home Assistant
 # required. Can also pair with Home Assistant over the native ESPHome API. Supports a 0..1 position
@@ -14,22 +14,22 @@
 # -----------------------------------------------------------------------------
 # Hardware
 # -----------------------------------------------------------------------------
-#   MCU     : ESP32-C3 (esp32-c3-devkitm-1, esp-idf framework)
+#   MCU     : ESP32-C6 (esp32-c6-devkitc-1, esp-idf framework)
 #   Driver  : TMC2209 stepper driver, single-wire UART control (PDN_UART)
 #   Motor   : NEMA-17 stepper, 200 full steps/rev, 8x microstepping = 1600 steps/rev
 #   Gearing : MK7 drive gear, ~3.7699 cm of rope per revolution
 #
 # -----------------------------------------------------------------------------
-# GPIO wiring (ESP32-C3 -> TMC2209 / buttons)
+# GPIO wiring (ESP32-C6 -> TMC2209 / buttons)
 # -----------------------------------------------------------------------------
-#   GPIO0 : INDEX  (TMC2209 step-counter output, informational)
+#   GPIO0 : UART RX  <- TMC2209 PDN_UART
 #   GPIO1 : DIAG   (TMC2209 StallGuard / diagnostic output -> on_stall)
-#   GPIO3 : Button 2  (open),         active-low pushbutton to GND
-#   GPIO4 : Button 1  (close / home), active-low pushbutton to GND
-#   GPIO5 : UART RX  <- TMC2209 PDN_UART
+#   GPIO3 : Button 1  (close / home), active-low pushbutton to GND
+#   GPIO4 : Button 3  (Wi-Fi reset),  active-low pushbutton to GND
+#   GPIO5 : ENN    (TMC2209 enable, active-low)
 #   GPIO6 : UART TX  -> TMC2209 PDN_UART
-#   GPIO7 : Button 3  (Wi-Fi reset),  active-low pushbutton to GND
-#   GPIO8 : ENN    (TMC2209 enable, active-low)
+#   GPIO7 : INDEX  (TMC2209 step-counter output, informational)
+#   GPIO8 : Button 2  (open),         active-low pushbutton to GND
 #
 # -----------------------------------------------------------------------------
 # Position / motion model
@@ -71,18 +71,18 @@
 #   Holding a button to move only runs while held and the motor auto-stops at
 #   the 0 % / 100 % end — it cannot be driven past the limit.
 #
-#   Button 1 (GPIO4):
+#   Button 1 (GPIO3):
 #     - Tap (quick press/release)   : close cover (to 0 %)
 #     - Press and hold              : close while held; auto-stops at 0 %, and
 #                                     stops early on release (hold-to-run)
 #     - Seven quick taps            : start homing
-#   Button 2 (GPIO3):
+#   Button 2 (GPIO8):
 #     - Tap (quick press/release)   : open cover (to 100 %)
 #     - Press and hold              : open while held; auto-stops at 100 %, and
 #                                     stops early on release (hold-to-run)
 #   Button 1 + Button 2 together:
 #     - Hold both for 3 s           : set the current position as home (0)
-#   Button 3 (GPIO7):
+#   Button 3 (GPIO4):
 #     - Long  press (3 s - 10 s)    : clear saved Wi-Fi credentials + reboot
 #
 # -----------------------------------------------------------------------------
@@ -468,7 +468,7 @@ substitutions:
 
   # Firmware version — single source of truth. Feeds project.version (below) and
   # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
-  firmware_version: "2.6.0"
+  firmware_version: "2.6.1"
 
   # Physical-button gesture timing (ms). Compile-time, not runtime-tunable.
   #   hold_run_ms  : a press held longer than this engages hold-to-run; shorter
@@ -503,9 +503,14 @@ ota:
 # HTTP client used by the GitHub OTA button. verify_ssl is off so we don't have
 # to bundle and refresh a CA certificate; the tradeoff is no certificate
 # verification on the download. The timeout is generous (the image is ~1 MB).
+# The buffers are enlarged from the 512-byte default: GitHub 302-redirects the
+# download to a very long signed CDN URL, and the request/response don't fit in
+# 512 bytes (the esp_http_client reports "Out of buffer" and the OTA fails).
 http_request:
   verify_ssl: false
   timeout: 10min
+  buffer_size_rx: 4096
+  buffer_size_tx: 4096
 
 # UART logger. By default ESPHome logs one DEBUG line per entity publish, so
 # the chatty `number` / `text_sensor` / `sensor` entities (which re-publish on
@@ -557,7 +562,7 @@ web_server:
 # Board / Wi-Fi
 # -----------------------------------------------------------------------------
 esp32:
-  variant: esp32c3
+  variant: esp32c6
   framework:
     type: esp-idf
 
@@ -583,7 +588,9 @@ captive_portal:
 
 # Improv Wi-Fi provisioning over USB serial — lets tools like web.esphome.io
 # push Wi-Fi credentials without editing secrets.yaml or using the hotspot.
-# Note: esp32_improv_ble is not supported on ESP32-C3 with esp-idf.
+# Note: unlike the ESP32-C3, the ESP32-C6 has Bluetooth LE, so esp32_improv
+# (BLE provisioning) is also available here if desired — serial is kept for
+# simplicity and because it needs no extra app.
 improv_serial:
 
 # -----------------------------------------------------------------------------
@@ -686,7 +693,7 @@ esphome:
 # round-trips for the 1 s polled diagnostic sensors.
 uart:
   tx_pin: 6
-  rx_pin: 5
+  rx_pin: 0
   baud_rate: 500000
 
 # -----------------------------------------------------------------------------
@@ -705,8 +712,8 @@ stepper:
     config_dump_include_registers: false    # dump TMC2209 registers in the boot log for debugging
     rsense: 100 mOhm
     vsense: False
-    enn_pin: 8                             # active-low driver enable
-    index_pin: 0                           # step-counter feedback (unused but wired)
+    enn_pin: 5                             # active-low driver enable
+    index_pin: 7                           # step-counter feedback (unused but wired)
     diag_pin: 1                            # StallGuard / fault output -> on_stall
     on_stall:
       - stepper.stop: driver               # halt motion immediately
@@ -761,7 +768,7 @@ binary_sensor:
       sorting_group_id: group_diagnostics
     id: btn1
     pin:
-      number: 4
+      number: 3
       mode: INPUT
       inverted: true
     filters:
@@ -892,7 +899,7 @@ binary_sensor:
       sorting_group_id: group_diagnostics
     id: btn2
     pin:
-      number: 3
+      number: 8
       mode: INPUT
       inverted: true
     filters:
@@ -990,7 +997,7 @@ binary_sensor:
                   - cover.open: ropener_cover
                   - logger.log: "Button 2 tap: opening"
 
-  # Button 3 (GPIO7): Wi-Fi reset.
+  # Button 3 (GPIO4): Wi-Fi reset.
   # Hold 3-10 s to erase the saved Wi-Fi credentials and reboot. A long hold
   # is required (not a quick tap) so the device can't be knocked offline by an
   # accidental press. On reboot the device re-runs Wi-Fi setup: with no
@@ -1004,7 +1011,7 @@ binary_sensor:
       sorting_group_id: group_diagnostics
     id: btn_wifi_reset
     pin:
-      number: 7
+      number: 4
       mode: INPUT
       inverted: true
     filters:
@@ -1161,8 +1168,8 @@ button:
       - ota.http_request.flash:
           # Version-less "latest" assets (published with every release): the OTA
           # image plus a text file holding its MD5, which the flash verifies.
-          md5_url: https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3000.ota.bin.md5
-          url: https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3000.ota.bin
+          md5_url: https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3100.ota.bin.md5
+          url: https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3100.ota.bin
 
 
 # -----------------------------------------------------------------------------
