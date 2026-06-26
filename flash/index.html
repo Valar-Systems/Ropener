@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Ropener Firmware</title>
+  <!-- ESP Web Tools: reads the connected chip and flashes the matching build from manifest.json -->
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.5; color: #1c2128; }
+    h1 { font-size: 1.6rem; }
+    button { font-size: 1rem; padding: 0.6rem 1.3rem; border-radius: 6px; border: 0; background: #1f6feb; color: #fff; cursor: pointer; }
+    button:hover { background: #1a5fd0; }
+    .note { color: #57606a; font-size: 0.9rem; }
+    ul { color: #24292f; }
+    a { color: #1f6feb; }
+  </style>
+</head>
+<body>
+  <h1>⚙️ Flash your Ropener</h1>
+  <p>Plug the device into this computer over USB, then click <b>Install</b>. The
+     installer auto-detects your board by its chip and flashes the matching firmware:</p>
+  <ul>
+    <li><b>VAL3000</b> — ESP32-C3</li>
+    <li><b>VAL3100</b> — ESP32-C6</li>
+  </ul>
+
+  <esp-web-install-button manifest="manifest.json">
+    <button slot="activate">Install Ropener Firmware</button>
+    <span slot="unsupported" class="note">⚠️ Your browser can't flash — use desktop <b>Chrome</b> or <b>Edge</b>.</span>
+    <span slot="not-allowed" class="note">⚠️ This page must be served over <b>HTTPS</b> (or localhost) to flash.</span>
+  </esp-web-install-button>
+
+  <p class="note">After flashing, the installer can also connect the device to your Wi-Fi.
+     Need help? See the <a href="https://github.com/Valar-Systems/Ropener/wiki/Firmware-Guide">Firmware Guide</a>.</p>
+</body>
+</html>

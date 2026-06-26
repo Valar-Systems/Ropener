@@ -22,14 +22,15 @@
 # -----------------------------------------------------------------------------
 # GPIO wiring (ESP32-C6 -> TMC2209 / buttons)
 # -----------------------------------------------------------------------------
-#   GPIO0 : UART RX  <- TMC2209 PDN_UART
-#   GPIO1 : DIAG   (TMC2209 StallGuard / diagnostic output -> on_stall)
+#   GPIO0 : UART TX  -> TMC2209 PDN_UART
+#   GPIO1 : UART RX  <- TMC2209 PDN_UART
 #   GPIO3 : Button 1  (close / home), active-low pushbutton to GND
 #   GPIO4 : Button 3  (Wi-Fi reset),  active-low pushbutton to GND
 #   GPIO5 : ENN    (TMC2209 enable, active-low)
-#   GPIO6 : UART TX  -> TMC2209 PDN_UART
+#   GPIO6 : DIAG   (TMC2209 StallGuard / diagnostic output -> on_stall)
 #   GPIO7 : INDEX  (TMC2209 step-counter output, informational)
-#   GPIO8 : Button 2  (open),         active-low pushbutton to GND
+#   GPIO19: Button 2  (open),         active-low pushbutton to GND
+#   GPIO23: Status LED (device health indicator, active-high)
 #
 # -----------------------------------------------------------------------------
 # Position / motion model
@@ -76,7 +77,7 @@
 #     - Press and hold              : close while held; auto-stops at 0 %, and
 #                                     stops early on release (hold-to-run)
 #     - Seven quick taps            : start homing
-#   Button 2 (GPIO8):
+#   Button 2 (GPIO19):
 #     - Tap (quick press/release)   : open cover (to 100 %)
 #     - Press and hold              : open while held; auto-stops at 100 %, and
 #                                     stops early on release (hold-to-run)
@@ -470,6 +471,10 @@ substitutions:
   # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
   firmware_version: "2.6.1"
 
+  # Board identity — shown via the "Board" diagnostic sensor so the firmware on a
+  # unit can be matched to its hardware at a glance.
+  board_id: "VAL3100 (ESP32-C6)"
+
   # Physical-button gesture timing (ms). Compile-time, not runtime-tunable.
   #   hold_run_ms  : a press held longer than this engages hold-to-run; shorter
   #                  is treated as a tap. Long enough that a deliberate tap is
@@ -685,6 +690,9 @@ esphome:
     - text_sensor.template.publish:        # surface the firmware version on the web UI / HA
         id: firmware_version_text
         state: "${firmware_version}"
+    - text_sensor.template.publish:        # surface the board model on the web UI / HA
+        id: board_text
+        state: "${board_id}"
 
 # -----------------------------------------------------------------------------
 # UART to TMC2209 (PDN_UART, single-wire)
@@ -692,8 +700,8 @@ esphome:
 # 500 kbaud is well within the TMC2209's tolerance and gives quick register
 # round-trips for the 1 s polled diagnostic sensors.
 uart:
-  tx_pin: 6
-  rx_pin: 0
+  tx_pin: 0
+  rx_pin: 1
   baud_rate: 500000
 
 # -----------------------------------------------------------------------------
@@ -714,7 +722,7 @@ stepper:
     vsense: False
     enn_pin: 5                             # active-low driver enable
     index_pin: 7                           # step-counter feedback (unused but wired)
-    diag_pin: 1                            # StallGuard / fault output -> on_stall
+    diag_pin: 6                            # StallGuard / fault output -> on_stall
     on_stall:
       - stepper.stop: driver               # halt motion immediately
       - if:
@@ -899,7 +907,7 @@ binary_sensor:
       sorting_group_id: group_diagnostics
     id: btn2
     pin:
-      number: 8
+      number: 19
       mode: INPUT
       inverted: true
     filters:
@@ -1594,6 +1602,19 @@ text_sensor:
       sorting_group_id: group_diagnostics
     update_interval: never
 
+  # Board model (VAL3000 / C3 vs VAL3100 / C6). Static value from ${board_id},
+  # published once at boot — confirm the right firmware is on the right board
+  # straight from the web UI / HA device info.
+  - platform: template
+    name: "Board"
+    id: board_text
+    icon: "mdi:developer-board"
+    entity_category: DIAGNOSTIC
+    web_server:
+      sorting_weight: 6
+      sorting_group_id: group_diagnostics
+    update_interval: never
+
 # -----------------------------------------------------------------------------
 # Motion-completion poll
 # -----------------------------------------------------------------------------
@@ -1702,3 +1723,24 @@ sensor:
     lambda: return id(driver)->read_register(SG_RESULT);
     update_interval: 1s
     entity_category: DIAGNOSTIC
+
+# -----------------------------------------------------------------------------
+# Status LED (VAL3100 only)
+# -----------------------------------------------------------------------------
+# Onboard LED on GPIO23. Uses ESPHome's `status_led`, which reflects device
+# health automatically with no custom logic:
+#   off        - connected and healthy
+#   slow blink - warning (Wi-Fi / API not connected, or in setup / AP mode)
+#   fast blink - error
+# Assumes the LED is active-high (lit when GPIO23 is driven high). If it's wired
+# active-low (lit when the pin is low), set `inverted: true` under `pin:`.
+light:
+  - platform: status_led
+    name: "Status LED"
+    id: status_led_light
+    web_server:
+      sorting_weight: 5
+      sorting_group_id: group_diagnostics
+    pin:
+      number: GPIO23
+      inverted: false
