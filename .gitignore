@@ -5,3 +5,6 @@ firmware/secrets.yaml
 firmware/**/*.factory.bin
 firmware/**/*.ota.bin
 firmware/**/*.ota.bin.md5
+
+# ESPHome build caches
+firmware/**/.esphome/
