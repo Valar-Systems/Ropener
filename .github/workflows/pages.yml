@@ -9,6 +9,10 @@ on:
     paths:
       - "flash/**"
       - ".github/workflows/pages.yml"
+  # Re-deploy whenever a new release is published, so the flasher serves the
+  # latest firmware bins (they're fetched from the release at build time).
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -28,6 +32,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # Pull the latest release's factory images into flash/ so the flasher
+      # serves them same-origin. GitHub release downloads send no CORS headers,
+      # so ESP Web Tools can't fetch them cross-origin from the Pages site.
+      - name: Fetch firmware binaries from the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo "${{ github.repository }}" \
+            --pattern 'Ropener-VAL3000.factory.bin' \
+            --pattern 'Ropener-VAL3100.factory.bin' \
+            --dir flash --clobber
       - uses: actions/configure-pages@v5
         with:
           enablement: true
