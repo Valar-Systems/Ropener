@@ -4,3 +4,4 @@ firmware/secrets.yaml
 # Firmware binaries are distributed via GitHub Releases, not tracked in git
 firmware/**/*.factory.bin
 firmware/**/*.ota.bin
+firmware/**/*.ota.bin.md5

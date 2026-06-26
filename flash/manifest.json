@@ -1,0 +1,26 @@
+{
+  "name": "Ropener",
+  "version": "2.6.1",
+  "home_assistant_domain": "esphome",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [
+        {
+          "path": "https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3000.factory.bin",
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-C6",
+      "parts": [
+        {
+          "path": "https://github.com/Valar-Systems/Ropener/releases/latest/download/Ropener-VAL3100.factory.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

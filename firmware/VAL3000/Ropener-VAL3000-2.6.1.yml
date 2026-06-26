@@ -1,6 +1,6 @@
 # =============================================================================
 # Ropener — ESPHome firmware
-# Version: 2.6.0
+# Version: 2.6.1
 # =============================================================================
 #
 # A Wi-Fi connected curtain/cover controller that pulls a poly rope using a
@@ -468,7 +468,11 @@ substitutions:
 
   # Firmware version — single source of truth. Feeds project.version (below) and
   # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
-  firmware_version: "2.6.0"
+  firmware_version: "2.6.1"
+
+  # Board identity — shown via the "Board" diagnostic sensor so the firmware on a
+  # unit can be matched to its hardware at a glance.
+  board_id: "VAL3000 (ESP32-C3)"
 
   # Physical-button gesture timing (ms). Compile-time, not runtime-tunable.
   #   hold_run_ms  : a press held longer than this engages hold-to-run; shorter
@@ -503,9 +507,14 @@ ota:
 # HTTP client used by the GitHub OTA button. verify_ssl is off so we don't have
 # to bundle and refresh a CA certificate; the tradeoff is no certificate
 # verification on the download. The timeout is generous (the image is ~1 MB).
+# The buffers are enlarged from the 512-byte default: GitHub 302-redirects the
+# download to a very long signed CDN URL, and the request/response don't fit in
+# 512 bytes (the esp_http_client reports "Out of buffer" and the OTA fails).
 http_request:
   verify_ssl: false
   timeout: 10min
+  buffer_size_rx: 4096
+  buffer_size_tx: 4096
 
 # UART logger. By default ESPHome logs one DEBUG line per entity publish, so
 # the chatty `number` / `text_sensor` / `sensor` entities (which re-publish on
@@ -678,6 +687,9 @@ esphome:
     - text_sensor.template.publish:        # surface the firmware version on the web UI / HA
         id: firmware_version_text
         state: "${firmware_version}"
+    - text_sensor.template.publish:        # surface the board model on the web UI / HA
+        id: board_text
+        state: "${board_id}"
 
 # -----------------------------------------------------------------------------
 # UART to TMC2209 (PDN_UART, single-wire)
@@ -1584,6 +1596,19 @@ text_sensor:
     entity_category: DIAGNOSTIC
     web_server:
       sorting_weight: 4
+      sorting_group_id: group_diagnostics
+    update_interval: never
+
+  # Board model (VAL3000 / C3 vs VAL3100 / C6). Static value from ${board_id},
+  # published once at boot — confirm the right firmware is on the right board
+  # straight from the web UI / HA device info.
+  - platform: template
+    name: "Board"
+    id: board_text
+    icon: "mdi:developer-board"
+    entity_category: DIAGNOSTIC
+    web_server:
+      sorting_weight: 6
       sorting_group_id: group_diagnostics
     update_interval: never
 
