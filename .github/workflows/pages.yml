@@ -26,6 +26,15 @@ concurrency:
 
 jobs:
   deploy:
+    # The github-pages environment only allows deployments from the default
+    # branch. A release published from a feature branch runs from its tag ref
+    # and would be rejected at the environment gate (a hard failure). So for
+    # release events, only deploy when the release was cut from the default
+    # branch (the normal flow); otherwise skip cleanly. You can still update the
+    # flasher for a branch-cut release via workflow_dispatch from main.
+    if: >-
+      github.event_name != 'release' ||
+      github.event.release.target_commitish == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment:
       name: github-pages
