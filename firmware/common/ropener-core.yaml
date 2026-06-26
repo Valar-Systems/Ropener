@@ -1,6 +1,6 @@
 # =============================================================================
 # Ropener — ESPHome firmware (shared core)
-# Version: 2.6.1
+# Version: 2.6.2
 # =============================================================================
 #
 # Board-independent core shared by every Ropener board. Each per-board file
@@ -481,7 +481,7 @@ substitutions:
 
   # Firmware version — single source of truth. Feeds project.version (below) and
   # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
-  firmware_version: "2.6.1"
+  firmware_version: "2.6.2"
 
   # NOTE: board-specific substitutions — board_variant, board_id, the GPIO pin
   # map (pin_uart_tx/rx, pin_enn/index/diag, pin_btn1/btn2/btn_wifi) and
