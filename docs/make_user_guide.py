@@ -153,7 +153,7 @@ r.font.color.rgb = ORANGE
 
 ver = doc.add_paragraph()
 ver.alignment = WD_ALIGN_PARAGRAPH.CENTER
-r = ver.add_run("Firmware 2.4.0")
+r = ver.add_run("Firmware 2.6.1")
 r.italic = True
 r.font.color.rgb = GREY
 
