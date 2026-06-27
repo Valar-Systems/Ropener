@@ -25,6 +25,8 @@ There is a carriage attached to the back of each curtain panel. A string runs th
 
 At the heart of the device is our custom PCB which uses an ESP32 and Trinamic TMC2209 stepper driver. The motor is dead silent.
 
+The latest **v1.1** hardware revision uses a smaller-diameter MK8 drive gear that boosts the pull strength from 11 lb to **15 lb**, swaps to a single larger bearing per arm (fewer parts), and uses pre-cut PTFE tubes. See the [hardware notes](hardware/README.md) for details.
+
 ## Will it work on your curtains?
 
 This works on the following curtains:
@@ -47,7 +49,7 @@ We've created a hardware kit that includes everything. If you source the parts i
 
 ## How to 3D print it
 
-Go to the repo folder "hardware" -> "Plastics" -> "platter"
+The current revision is **v1.1**. Open the print plate at [hardware/plastics/v1.1/platter-all-v1.1.3mf](hardware/plastics/v1.1/platter-all-v1.1.3mf), or print the individual `.step` files in that folder. The earlier [v1.0](hardware/plastics/v1.0) files remain for anyone who already built one.
 
 
 ## How to install it

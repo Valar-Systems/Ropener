@@ -183,8 +183,8 @@ bom_table([
     ("M3 square nut", 1, ""),
     ("M3 × 16 mm screw, button head", 2, ""),
     ("M3 × 10 mm screw, flat head", 2, ""),
-    ("Gear", 1, "MK7"),
-    ("Bearing", 2, "7 mm × 3 mm × 3 mm"),
+    ("Gear", 1, "MK8 (5 mm bore, 9 mm OD)"),
+    ("Bearing", 2, "633ZZ, 3 mm × 13 mm × 5 mm"),
 ])
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ bom_table([
 # ---------------------------------------------------------------------------
 doc.add_heading("Curtain Assembly", level=1)
 bom_table([
-    ("PTFE tubing, 3 mm ID × 5 mm OD", 1, "290 mm length required"),
+    ("PTFE tubing, 3 mm ID × 5 mm OD (pre-cut)", 6, "2 × 10 mm, 2 × 40 mm, 2 × 70 mm"),
     ("M3 × 10 mm screw, self-tapping", 11, ""),
     ("M3 square nut", 1, ""),
     ("M3 × 12 mm screw, flat head", 1, ""),
@@ -212,7 +212,6 @@ bom_table([
 # ---------------------------------------------------------------------------
 doc.add_heading("Assembly Tools Required", level=1)
 bom_table([
-    ("Razor", 1, "To cut the length of PTFE tubing"),
     ("Screwdriver, Phillips No. 1", 1, ""),
     ("Hex driver, 2 mm", 1, ""),
 ])

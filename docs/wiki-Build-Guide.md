@@ -6,6 +6,13 @@
 
 Assembling a Ropener takes about **20 minutes** with three common hand tools — no soldering. It comes together in three stages: the **motor body**, the **curtain-rail carriages**, and **attaching it to your curtains**. Follow whichever guide below suits you — they all cover the same build.
 
+> 🆕 **New in v1.1** — This guide covers the current **v1.1** hardware:
+> - **Stronger pull (11 lb → 15 lb)** from a smaller-diameter **MK8** drive gear (replaces the MK7).
+> - **One larger 633ZZ bearing (3 × 13 × 5 mm) per arm** instead of two small bearings.
+> - **Pre-cut PTFE tubes** (10 / 40 / 70 mm) — no measuring or razor-cutting.
+>
+> Print from [`hardware/plastics/v1.1`](https://github.com/Valar-Systems/Ropener/tree/main/hardware/plastics/v1.1). The v1.0 files remain in the repo for anyone who already built one.
+
 ## How to build
 
 | Guide | Best for |
@@ -82,14 +89,14 @@ Everything the build needs is below. For the full, maintained list see the [Bill
 | Cable extension | as needed |
 | 3M Command Strips | 4 |
 | 1.6 mm rope | 30 ft |
-| PTFE tubing | 250 mm |
+| PTFE tubing (pre-cut: 2 × 10 mm, 2 × 40 mm, 2 × 70 mm) | 6 |
 | M3 square nut | 4 |
 | M3 × 35 mm button-head screw | 3 |
 | V-groove pulley | 1 |
 | M3 × 10 mm flat-head screw | 2 |
 | M3 × 15 mm button-head screw | 3 |
-| Bearing | 4 |
-| MK7 drive gear | 1 |
+| Bearing (633ZZ, 3 × 13 × 5 mm) | 2 |
+| MK8 drive gear | 1 |
 | Zip tie | 4 |
 | M3 × 10 mm thread-forming screw | 23 |
 
@@ -126,8 +133,8 @@ This device works on the following curtain types.
 <!-- 📷 media/build-guide/08-drive-pulley.png — drive pulley on motor shaft -->
 4. **Attach the drive pulley.** Fit it onto the motor shaft. You'll fine-tune its position later.
 
-<!-- 📷 media/build-guide/09-arms.png — arm with M3×12mm button head (red), two bearings (green), M3 square nut (orange) -->
-5. **Assemble the two arms.** Each arm uses an **M3 × 12 mm button-head screw**, **two bearings**, and an **M3 square nut**. Build both arms the same way.
+<!-- 📷 media/build-guide/09-arms.png — arm with M3×12mm button head (red), one 633ZZ bearing (green), M3 square nut (orange) -->
+5. **Assemble the two arms.** Each arm uses an **M3 × 12 mm button-head screw**, **one 633ZZ bearing (3 × 13 × 5 mm)**, and an **M3 square nut**. Build both arms the same way.
 
 <!-- 📷 media/build-guide/10-arms-connector.png — plastic connector + both arms on motor, 2× M3×30mm screws -->
 6. **Attach the arms to the motor.** Fasten the plastic connector and **both arms** to the motor using **two M3 × 30 mm screws**.
@@ -149,13 +156,13 @@ This device works on the following curtain types.
 
 <!-- 📷 media/build-guide/15-setup-overview.png — rail layout: pulley, 1-screw carriage, 2-screw carriage, motor side -->
 
-**Cut the PTFE tube** to the lengths below with a razor — two of each:
+The **PTFE tubes come pre-cut** — no cutting needed. You'll have **two of each length**:
 
-| Length | Quantity |
-| --- | --- |
-| Short | 2 |
-| Medium | 2 |
-| Long | 2 |
+| Length | Size | Quantity |
+| --- | --- | --- |
+| Short | 10 mm | 2 |
+| Medium | 40 mm | 2 |
+| Long | 70 mm | 2 |
 
 <!-- 📷 media/build-guide/16-long-tubes.png — 2 long tubes placed, top plastic attached with 2 screws -->
 1. **Long tubes.** Place the **two long tubes**, then attach the top plastic using **two M3 thread-forming screws**.
