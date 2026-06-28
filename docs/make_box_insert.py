@@ -1,7 +1,7 @@
 """Generate a 4x6 inch product-box insert card with a QR code to the wiki.
 
 Run:  python make_box_insert.py
-Output (in this folder):
+Output (in the gitignored dist/ folder):
   - "Ropener Box Insert.png"  (1200x1800 px, 300 DPI, ready for print services)
   - "Ropener Box Insert.pdf"  (same artwork, 4x6 in)
 """
@@ -16,6 +16,7 @@ URL_LABEL = "github.com/Valar-Systems/Ropener/wiki"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGO = os.path.join(HERE, "valar-logo-black.png")
+DIST = os.path.join(HERE, "dist")          # generated output (gitignored)
 
 # 4 x 6 in at 300 DPI (portrait)
 DPI = 300
@@ -120,8 +121,9 @@ center("Need help? Open an issue on GitHub", H - 168, font(REG, 30), GREY)
 center("valarsystems.com", H - 124, font(SEMI, 32), ORANGE)
 
 # ---- save -----------------------------------------------------------------
-png_out = os.path.join(HERE, "Ropener Box Insert.png")
-pdf_out = os.path.join(HERE, "Ropener Box Insert.pdf")
+os.makedirs(DIST, exist_ok=True)
+png_out = os.path.join(DIST, "Ropener Box Insert.png")
+pdf_out = os.path.join(DIST, "Ropener Box Insert.pdf")
 img.save(png_out, dpi=(DPI, DPI))
 img.save(pdf_out, "PDF", resolution=DPI)
 print("Saved:", png_out)

@@ -2,7 +2,7 @@
 
 Source data: BOM-V2.0.md (kept in sync by hand).
 Run:  python make_bom.py
-Output: "Ropener Bill of Materials.docx" in this folder.
+Output: "Ropener Bill of Materials.docx" in the gitignored dist/ folder.
 """
 
 import os
@@ -26,6 +26,7 @@ LINK_BLUE = "0563C1"
 MONO = "Consolas"
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGO = os.path.join(HERE, "valar-logo-black.png")
+DIST = os.path.join(HERE, "dist")     # generated output (gitignored)
 
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
@@ -234,6 +235,7 @@ url = fp.add_run("valarsystems.com")
 url.font.size = Pt(9)
 url.font.color.rgb = GREY
 
-out = os.path.join(HERE, "Ropener Bill of Materials.docx")
+os.makedirs(DIST, exist_ok=True)
+out = os.path.join(DIST, "Ropener Bill of Materials.docx")
 doc.save(out)
 print("Saved:", out)
