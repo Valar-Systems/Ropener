@@ -1,7 +1,7 @@
 """Generate the Ropener Curtain Controller user guide as a .docx file.
 
 Run:  python make_user_guide.py
-Output: "Ropener User Guide.docx" in this folder.
+Output: "Ropener User Guide.docx" in the gitignored dist/ folder.
 """
 
 import os
@@ -23,6 +23,7 @@ GREY = RGBColor(0x59, 0x59, 0x59)     # muted grey for sub-text
 MONO = "Consolas"
 HERE = os.path.dirname(os.path.abspath(__file__))
 LOGO = os.path.join(HERE, "valar-logo-black.png")  # transparent bg, sits on white
+DIST = os.path.join(HERE, "dist")     # generated output (gitignored)
 
 doc = Document()
 
@@ -729,6 +730,7 @@ mono_table(
     widths=[2.4, 4.0],
 )
 
-out = r"c:\Github\Ropener\docs\Ropener User Guide.docx"
+os.makedirs(DIST, exist_ok=True)
+out = os.path.join(DIST, "Ropener User Guide.docx")
 doc.save(out)
 print("Saved:", out)

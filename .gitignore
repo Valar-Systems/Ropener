@@ -8,3 +8,11 @@ firmware/**/*.ota.bin.md5
 
 # ESPHome build caches
 firmware/**/.esphome/
+
+# Generated docs (rendered from the make_*.py scripts; published to the Valar
+# Drive, not tracked in git). Sources (markdown, generators, logos) stay tracked.
+docs/dist/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
