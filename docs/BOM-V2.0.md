@@ -1,5 +1,7 @@
 # BOM V2.0
 
+> Reflects the **v1.1** hardware. What changed from v1.0: a smaller-diameter **MK8** drive gear (pull strength 11 lb → 15 lb), **one larger 633ZZ bearing per arm** instead of two small bearings, and **pre-cut PTFE tubes** (no razor-cutting). Quantities are per unit.
+
 ## Body Assembly
 | Part | Amount | Short Description |
 | :--- | :---: | :---: |
@@ -12,14 +14,14 @@
 | M3 Square Nut | 1 ||
 | M3 x 16mm Screw Buttonhead | 2 ||
 | M3 x 10 mm Screw Flathead | 2 ||
-| Gear | 1 |MK7|
-| Bearing | 2 |7mm x 3mm x 3mm|
+| Gear | 1 | MK8 (5mm bore, 9mm OD) |
+| Bearing | 2 | 633ZZ, 3mm x 13mm x 5mm |
 
 ## Curtain Assembly
 
 | Part | Amount | Short Description |
 | :--- | :---: | :---: |
-| PTFE tubing 3mm ID x 5mm OD | 1 | 290mm length required |
+| PTFE tubing 3mm ID x 5mm OD (pre-cut) | 6 | 2 x 10mm, 2 x 40mm, 2 x 70mm |
 | M3 x 10mm Screw Self-tapping | 11 ||
 | M3 Square Nut | 1 ||
 | M3 x 12 mm Screw Flathead | 1 ||
@@ -36,6 +38,5 @@
 ## Assembly Tools Required
 | Part | Amount | Short Description |
 | :--- | :---: | :---: |
-| Razor | 1 | To cut the length of PTFE tubing|
 | Screw driver Phillips No. 1  | 1 ||
 | Hex driver 2mm | 1 ||

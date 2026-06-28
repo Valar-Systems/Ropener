@@ -31,6 +31,7 @@ Control it from its built-in web page, the on-device buttons, or your smart home
 ## ✨ Why Ropener
 
 - **🔇 Silent** — Trinamic TMC2209 stepper driver.
+- **💪 Strong** — v1.1's MK8 drive gear pulls up to **15 lb** (up from 11 lb).
 - **📶 Wi-Fi built in** — control from any browser at `http://ropener-XXXXXX.local`, no cloud needed.
 - **🏠 Smart-home ready** — Home Assistant via ESPHome; Alexa, Apple & Google via Matterbridge.
 - **⏰ Scheduling** — set daily open/close times, or any position in between.
