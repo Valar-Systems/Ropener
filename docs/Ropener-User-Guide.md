@@ -130,7 +130,7 @@ The device can open and close the curtain automatically every day. There are **t
 - **Fixed times** — open and close at clock times you choose (e.g. 07:00 and 21:00).
 - **Sunrise / sunset** — open at sunrise and close at sunset, so the curtain follows the daylight as it shifts through the seasons.
 
-**Schedule Enabled** is the master on/off for whichever mode is active. The **Sun Schedule** switch chooses between the two: OFF uses the fixed times, ON uses sunrise/sunset. Both modes run on local time, so set your **Timezone** first (Section 7).
+“Schedule Enabled” is the master on/off for whichever mode is active. The “Sun Schedule” switch chooses between the two: OFF uses the fixed times, ON uses sunrise/sunset. Both modes run on local time, so set your Timezone first (Section 7).
 
 ### Fixed times (default)
 
@@ -151,7 +151,7 @@ The device can open and close the curtain automatically every day. There are **t
 
 ### Sunrise / sunset (Sun Schedule)
 
-Turn **Sun Schedule** ON to follow the sun instead of the clock. The curtain opens at sunrise and closes at sunset for your location, recalculated every day so it tracks the changing seasons automatically — no need to adjust times by hand.
+Turn “Sun Schedule” ON to follow the sun instead of the clock. The curtain opens at sunrise and closes at sunset for your location, recalculated every day so it tracks the changing seasons automatically — no need to adjust times by hand.
 
 For this to be accurate, the device needs to know where it is. Enter your **Latitude** and **Longitude** in decimal degrees (north and east are positive; south and west are negative). You can copy these from any maps app — for example, New York is about Latitude `40.71`, Longitude `-74.01`.
 
@@ -192,7 +192,7 @@ The device keeps time using the internet, which provides time in UTC. To make th
 
 > **Important about the number sign:** In a POSIX timezone string the number is the hours WEST of UTC, so it looks “backwards” compared to the usual UTC offset. U.S. Eastern (UTC−5) is written as 5, Pacific (UTC−8) as 8, and so on. The table in Section 8 already has this right — just copy it exactly, including capitalization and punctuation.
 
-The trailing parts (for example `,M3.2.0,M11.1.0`) are the daylight-saving rules. The U.S. switches on the 2nd Sunday of March and the 1st Sunday of November; the European Union switches on the last Sunday of March and the last Sunday of October. The tables in Section 8 already encode the correct rule for each region — just copy the value exactly. If your area does not observe daylight saving time, use the “without DST” value, which has no trailing rules.
+The trailing parts (for example “,M3.2.0,M11.1.0”) are the daylight-saving rules. The U.S. switches on the 2nd Sunday of March and the 1st Sunday of November; the European Union switches on the last Sunday of March and the last Sunday of October. The tables in Section 8 already encode the correct rule for each region — just copy the value exactly. If your area does not observe daylight saving time, use the “without DST” value, which has no trailing rules.
 
 ---
 
@@ -315,7 +315,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | Open Time / Close Time | Daily schedule times (fixed-time mode). |
 | Schedule Enabled | Turn the daily schedule on/off. |
 | Sun Schedule | Switch between fixed-time and sunrise/sunset scheduling. |
-| Latitude / Longitude | Your location, used to compute sunrise/sunset. |
+| Latitude / Longitude | Your location used to compute sunrise/sunset. |
 | Sun Open Offset / Sun Close Offset | Minutes to shift open/close relative to sunrise/sunset. |
 | Timezone | Your local timezone (POSIX string). |
 | Centimeters | Curtain travel distance. |
