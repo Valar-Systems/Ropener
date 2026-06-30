@@ -1,6 +1,6 @@
 """Generate the Ropener Bill of Materials (V2.0) as a branded .docx file.
 
-Source data: BOM-V2.0.md (kept in sync by hand).
+Source data: BOM-V2.0.md (parsed at build time — the single source of truth).
 Run:  python make_bom.py
 Output: "Ropener Bill of Materials.docx" in the gitignored dist/ folder.
 """
@@ -29,6 +29,48 @@ LOGO = os.path.join(HERE, "valar-logo-black.png")
 DIST = os.path.join(HERE, "dist")     # generated output (gitignored)
 
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+
+def parse_bom(md_path):
+    """Parse BOM-V2.0.md into an ordered list of blocks:
+      ("h1"|"h2", heading_text)  — from ## / ### markdown headings
+      ("table", [(part, qty, desc), ...])  — from each markdown table
+
+    The top-level "# " title and the "> " intro blockquote are document chrome
+    handled by the renderer, so they are skipped here. Each table's first two
+    rows (header + alignment separator) are dropped; the rest become data rows.
+    Markdown links in the description cell are rendered as hyperlinks downstream.
+    """
+    blocks = []
+    table_lines = []
+
+    def flush_table():
+        if not table_lines:
+            return
+        rows = []
+        for ln in table_lines[2:]:                 # skip header + separator
+            cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+            if len(cells) >= 3:
+                rows.append((cells[0], cells[1], cells[2]))
+        if rows:
+            blocks.append(("table", rows))
+        table_lines.clear()
+
+    with open(md_path, encoding="utf-8") as f:
+        for raw in f:
+            stripped = raw.strip()
+            if stripped.startswith("|"):
+                table_lines.append(stripped)
+                continue
+            flush_table()
+            if stripped.startswith("### "):
+                blocks.append(("h2", stripped[4:].strip()))
+            elif stripped.startswith("## "):
+                blocks.append(("h1", stripped[3:].strip()))
+            # everything else (title, blockquote, blank lines) is skipped
+        flush_table()
+    return blocks
+
 
 doc = Document()
 normal = doc.styles["Normal"]
@@ -170,52 +212,15 @@ intro.add_run(
 )
 
 # ---------------------------------------------------------------------------
-# Body Assembly
+# Body: sections + tables, parsed from BOM-V2.0.md (single source of truth)
 # ---------------------------------------------------------------------------
-doc.add_heading("Body Assembly", level=1)
-bom_table([
-    ("VAL3000 PCB", 1, "[Custom PCB designed for this project](https://github.com/Valar-Systems/VAL3000)"),
-    ("NEMA 17 motor, 48 mm body", 1, "[Smaller length NEMA 17 will also work](https://amzn.to/4a2OnDi)"),
-    ("12V / 2A+ power adapter w/ 5.5×2.1 mm plug", 1,
-     "[Technically 5–29 V will work, but 12 V is best due to low speeds](https://amzn.to/3YauHG6)"),
-    ("Extension cable", 1, "[Extends the length of the power adapter](https://amzn.to/4oHaTVT)"),
-    ("M3 × 10 mm screw, self-tapping", 8, ""),
-    ("M3 × 35 mm screw, button head", 3, ""),
-    ("M3 square nut", 1, ""),
-    ("M3 × 16 mm screw, button head", 2, ""),
-    ("M3 × 10 mm screw, flat head", 2, ""),
-    ("Gear", 1, "MK8 (5 mm bore, 9 mm OD)"),
-    ("Bearing", 2, "633ZZ, 3 mm × 13 mm × 5 mm"),
-])
-
-# ---------------------------------------------------------------------------
-# Curtain Assembly
-# ---------------------------------------------------------------------------
-doc.add_heading("Curtain Assembly", level=1)
-bom_table([
-    ("PTFE tubing, 3 mm ID × 5 mm OD (pre-cut)", 6, "2 × 10 mm, 2 × 40 mm, 2 × 70 mm"),
-    ("M3 × 10 mm screw, self-tapping", 11, ""),
-    ("M3 square nut", 1, ""),
-    ("M3 × 12 mm screw, flat head", 1, ""),
-    ("Zip tie", 1, "Small, 2–3 mm wide"),
-    ("V623ZZ pulley", 1, "3 × 12 × 4 mm size"),
-    ("Rope", 1, "1.6 mm diameter"),
-])
-
-doc.add_heading("Mounting Hardware", level=2)
-bom_table([
-    ("Command strips", 2, "The easiest way to mount to any wall"),
-    ('#17 × 1 1/4" wire nail', 3, "Use to nail to drywall only"),
-])
-
-# ---------------------------------------------------------------------------
-# Assembly Tools Required
-# ---------------------------------------------------------------------------
-doc.add_heading("Assembly Tools Required", level=1)
-bom_table([
-    ("Screwdriver, Phillips No. 1", 1, ""),
-    ("Hex driver, 2 mm", 1, ""),
-])
+for kind, payload in parse_bom(os.path.join(HERE, "BOM-V2.0.md")):
+    if kind == "h1":
+        doc.add_heading(payload, level=1)
+    elif kind == "h2":
+        doc.add_heading(payload, level=2)
+    elif kind == "table":
+        bom_table(payload)
 
 # ---------------------------------------------------------------------------
 # Footer
