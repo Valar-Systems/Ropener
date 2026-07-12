@@ -1,6 +1,6 @@
 # Ropener Curtain Controller — User Guide
 
-*Firmware 2.6.3*
+*Firmware 2.6.4*
 
 ---
 
