@@ -1,6 +1,6 @@
 # Ropener Curtain Controller — User Guide
 
-*Firmware 2.6.1*
+*Firmware 2.6.3*
 
 ---
 
@@ -261,7 +261,7 @@ These settings are optional. The defaults work for a typical installation; chang
 | Centimeters | Total travel distance of the curtain, in cm. | Set this to your curtain's open-to-closed travel. Default 30 cm. |
 | Speed | How fast the motor runs (steps/second). | Higher is faster but louder. Effective max is 2000. |
 | Acceleration | How quickly the motor speeds up / slows down. | Higher is snappier; too high can skip or be noisy. |
-| Motor Direction | Which way the motor winds the rope. | Flip this if Open and Close are reversed for your install. |
+| Motor Direction | Which way the motor winds the rope (**Normal** / **Reversed ↺**). | Set to **Reversed** if Open and Close are backwards for your install. Your choice is saved and survives a power loss. |
 | IRUN value | Motor running current / torque (1–31). | Raise for more pulling force; lower if the driver runs hot. Default 25. |
 | SGTHRS value | Sensitivity of the stall detection used for homing (0–255). | See tuning note below. |
 | TCOOLTHRS value | Speed threshold above which stall detection is active. | See tuning note below. |
@@ -293,7 +293,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | --- | --- |
 | Can't find the web page | Make sure your phone/PC is on the same Wi-Fi as the device. Try the device's IP address instead of the `.local` name. Confirm it joined Wi-Fi (the setup hotspot should be gone). |
 | No setup hotspot appears | Wait a full minute after power-on. If it already joined a network, hold Button 3 for 3–10 seconds to reset Wi-Fi and try again. |
-| Open/Close are reversed | Toggle the “Motor Direction” switch. |
+| Open/Close are reversed | Set the “Motor Direction” setting to **Reversed**. |
 | Position is wrong / drifted | Run homing (Section 5) to recalibrate. |
 | Schedule fires at the wrong time | Check the Timezone value (Section 7/8) and that the device has internet for time sync. |
 | Schedule doesn't run | Confirm “Schedule Enabled” is ON and that Open/Close times are set. |

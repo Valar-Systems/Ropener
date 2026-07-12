@@ -53,7 +53,7 @@ At a high level, the curtain hardware is an **ESP32** microcontroller driving a 
 | `ota:` | Over-the-air update support, so later updates don't need a USB cable. |
 | `stepper:` + `cover:` | The motion engine. Position is tracked in motor *steps* and reported to the UI as a 0–1 (closed→open) ratio. |
 | `binary_sensor:` (buttons) | The three physical buttons (close/home, open, Wi-Fi reset). |
-| `number:` / `switch:` / `text:` / `datetime:` | The runtime-tunable settings — travel distance, speed, motor direction, schedule times, timezone, latitude/longitude, StallGuard thresholds. |
+| `number:` / `select:` / `switch:` / `text:` / `datetime:` | The runtime-tunable settings — travel distance, speed, motor direction, schedule times, timezone, latitude/longitude, StallGuard thresholds. |
 | `time:` + `sun:` + `interval:` | The daily schedule, including the optional sunrise/sunset mode. |
 
 You don't need to understand every line to update the firmware — but it's all commented in the file itself if you want to dig in.

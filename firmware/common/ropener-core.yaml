@@ -150,8 +150,8 @@ external_components:
 # Persistent state
 # -----------------------------------------------------------------------------
 # All globals use restore_value so settings survive reboots. They are mirrored
-# by `number` / `switch` entities further down — editing in Home Assistant
-# updates the global AND pushes the value to the appropriate TMC2209 register.
+# by `number` / `select` / `switch` entities further down — editing in Home
+# Assistant updates the global AND pushes the value to the TMC2209 / stepper.
 globals:
   # Motor run current (TMC2209 IRUN field, 0-31). Higher = more torque + heat.
   # 25 is a moderate setting; reduce if the driver overheats or skips cooldown.
@@ -206,7 +206,8 @@ globals:
     initial_value: '12732'
 
   # Motor shaft direction. Persisted so the unit comes up the same way after
-  # a reboot. Toggled by the "Motor Direction" switch entity.
+  # a reboot. Set by the "Motor Direction" select entity, which mirrors this
+  # global rather than holding its own state (see the select for why).
   - id: global_stepper_direction
     type: esphome::tmc2209::ShaftDirection
     restore_value: yes
@@ -481,7 +482,7 @@ substitutions:
 
   # Firmware version — single source of truth. Feeds project.version (below) and
   # the "Firmware Version" diagnostic sensor shown on the web UI / in HA.
-  firmware_version: "2.6.2"
+  firmware_version: "2.6.3"
 
   # NOTE: board-specific substitutions — board_variant, board_id, the GPIO pin
   # map (pin_uart_tx/rx, pin_enn/index/diag, pin_btn1/btn2/btn_wifi) and
@@ -1192,34 +1193,71 @@ button:
 
 
 # -----------------------------------------------------------------------------
-# Configuration switches
+# Configuration selects
 # -----------------------------------------------------------------------------
-# Motor Direction: flips the shaft direction so the same close/open commands
-# wind the rope the right way regardless of how the motor was mounted.
-#   OFF -> CLOCKWISE
-#   ON  -> COUNTERCLOCKWISE
-# `optimistic: true` is fine here because the action is idempotent and we
-# persist the truth in `global_stepper_direction`.
-switch:
+# Motor Direction: picks the shaft direction so the same close/open commands
+# wind the rope the right way regardless of how the motor was mounted. The value
+# is just the motor's physical spin direction; flipping it reverses open and
+# close together. Labelled by OUTCOME rather than CW/CCW, because "clockwise" has
+# no defined viewpoint here (front vs. spindle side) and doesn't single out open
+# or close on its own:
+#   "Normal"     -> CLOCKWISE          (default; open/close as-is)
+#   "Reversed ↺" -> COUNTERCLOCKWISE   (pick this if open and close are backwards)
+#
+# This entity is a pure MIRROR of `global_stepper_direction`, exactly like the
+# number entities mirror their globals: `lambda` reports the current option from
+# the global, and `set_action` writes the global + pushes the new direction to
+# the driver. The global (restore_value: yes) is the single source of truth and
+# is applied to the driver in on_boot.
+#
+# Crucially this select carries NO optimistic/restore state of its own, so it
+# never writes the global at startup. That startup write is precisely what the
+# old "Motor Direction" *switch* did wrong: a template switch defaults to an
+# ALWAYS_OFF restore, so every power cycle re-ran its turn_off_action and reset
+# the restored direction back to CLOCKWISE. Mirroring the global instead removes
+# that second source of truth.
+#
+# set_action ALSO flushes the change to flash immediately. ESPHome batches
+# preference writes (default flash_write_interval 60s) and does not flush on an
+# abrupt power loss, so a global.set alone can be lost if the user changes the
+# direction and pulls power within that window — exactly what happens while
+# mounting/testing. update() pushes the changed global into the pending-save
+# buffer; global_preferences->sync() writes it to NVS right away. The 60s batch
+# is left intact for everything else, so the 200 ms position writes during
+# motion don't hammer flash.
+select:
   - platform: template
     name: "Motor Direction"
     web_server:
       sorting_weight: 2
       sorting_group_id: group_setup
     entity_category: CONFIG
-    optimistic: true
-    turn_on_action:
-      - globals.set:
-          id: global_stepper_direction
-          value: 'esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE'
+    update_interval: 1s
+    options:
+      - "Normal"
+      - "Reversed ↺"
+    lambda: |-
+      if (id(global_stepper_direction) == esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE)
+        return std::string("Reversed ↺");
+      return std::string("Normal");
+    set_action:
+      - lambda: |-
+          id(global_stepper_direction) = (x.find("Reversed") != std::string::npos)
+            ? esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE
+            : esphome::tmc2209::ShaftDirection::CLOCKWISE;
       - tmc2209.configure:
           direction: !lambda return id(global_stepper_direction);
-    turn_off_action:
-      - globals.set:
-          id: global_stepper_direction
-          value: 'esphome::tmc2209::ShaftDirection::CLOCKWISE'
-      - tmc2209.configure:
-          direction: !lambda return id(global_stepper_direction);
+      - lambda: |-
+          // Persist immediately (see the note above the select). update() moves
+          // the changed value into the pending-save buffer; sync() flushes that
+          // buffer to NVS now, so the choice survives an unplug seconds later.
+          global_stepper_direction->update();
+          global_preferences->sync();
+
+# -----------------------------------------------------------------------------
+# Configuration switches
+# -----------------------------------------------------------------------------
+switch:
 
   # Schedule Enabled: master on/off for the daily schedule. When OFF, neither
   # schedule moves the cover. When ON, the "Sun Schedule" switch below selects
