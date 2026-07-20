@@ -1,0 +1,416 @@
+# =============================================================================
+# Ropener — product layer (curtain opener)
+# =============================================================================
+# The Ropener-specific behaviour that sits ON TOP of the shared valar-core +
+# scheduling packages. Each board wrapper (firmware/VAL3000, firmware/VAL3100)
+# includes:
+#
+#   packages:
+#     valar_core: { url: .../valar-motion, files: [common/valar-core.yaml], ... }
+#     scheduling: { url: .../valar-motion, files: [common/scheduling.yaml], ... }
+#     product:    !include ../common/ropener-product.yaml
+#
+# This layer owns: the cover, sensorless homing, the two-button gesture UI, the
+# gear/distance math, and the schedule_open/schedule_close scripts the shared
+# scheduling mixin calls. It reuses core's driver (id: driver), tuning entities,
+# diagnostics, and web UI groups, and renames a few core entities via !extend so
+# field units keep their existing Home Assistant entity_ids.
+# =============================================================================
+
+# Mechanical + gesture constants (compile-time; a new flash to change).
+substitutions:
+  gear_distance_cm: "3.7699"       # MK7 drive gear: cm of rope per revolution
+  steps_per_revolution: "1600"     # 200 full steps * 8 microsteps
+  hold_run_ms: "700"               # press longer than this = hold-to-run
+  tap_window_ms: "400"             # rapid-tap chaining window
+  combo_home_ms: "3000"            # both buttons held this long = set home
+
+# Product boot steps. Core (priority 600) has already configured the TMC2209 and
+# stepper; here we resync the derived step count and restore the saved position
+# so the cover comes up accurate without a re-home. (scheduling re-applies
+# tz/location at priority -100, after this.)
+esphome:
+  on_boot:
+    - priority: 400.0
+      then:
+        - script.execute: recompute_distance
+        - stepper.report_position:
+            id: driver
+            position: !lambda "return id(global_current_position);"
+        - stepper.set_target:
+            id: driver
+            target: !lambda "return id(global_current_position);"
+
+# --- Product state (tuning/direction globals come from core; sun globals from
+#     the scheduling mixin) -----------------------------------------------------
+globals:
+  - { id: global_distance_cm,      type: int, restore_value: yes, initial_value: '30' }
+  - { id: global_distance_steps,   type: int, restore_value: no,  initial_value: '12732' }
+  - { id: global_state,            type: int, restore_value: no,  initial_value: '0' }
+  - { id: global_current_position, type: int, restore_value: yes, initial_value: '0' }
+  # Physical-button gesture state (runtime only).
+  - { id: b1_down,        type: bool,     restore_value: no, initial_value: 'false' }
+  - { id: b2_down,        type: bool,     restore_value: no, initial_value: 'false' }
+  - { id: b1_hold_active, type: bool,     restore_value: no, initial_value: 'false' }
+  - { id: b2_hold_active, type: bool,     restore_value: no, initial_value: 'false' }
+  - { id: b1_consumed,    type: bool,     restore_value: no, initial_value: 'false' }
+  - { id: b2_consumed,    type: bool,     restore_value: no, initial_value: 'false' }
+  - { id: b1_tap_count,   type: int,      restore_value: no, initial_value: '0' }
+  - { id: b1_last_tap_ms, type: uint32_t, restore_value: no, initial_value: '0' }
+
+script:
+  # Recompute the derived step cache from the persisted centimeters (one place).
+  - id: recompute_distance
+    then:
+      - globals.set:
+          id: global_distance_steps
+          value: !lambda "return (float(id(global_distance_cm)) / ${gear_distance_cm}) * ${steps_per_revolution};"
+
+  # Sensorless homing: drive toward the closed end until StallGuard fires.
+  - id: start_homing
+    then:
+      - globals.set: { id: global_state, value: "3" }
+      - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
+      - stepper.report_position: { id: driver, position: 0 }
+      - stepper.set_target: { id: driver, target: -100000 }
+      - logger.log: "Starting homing"
+
+  # Declare current position as home (0).
+  - id: set_home_zero
+    then:
+      - stepper.stop: driver
+      - stepper.report_position: { id: driver, position: 0 }
+      - stepper.set_target: { id: driver, target: 0 }
+      - globals.set: { id: global_state, value: "0" }
+      - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+      - logger.log: "Home position set to 0"
+
+  # Hold-to-run engage (armed on press, fired after hold_run_ms).
+  - id: b1_hold_check
+    mode: restart
+    then:
+      - delay: ${hold_run_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(b1_down) && !id(b2_down) && id(global_state) == 0 && id(b1_tap_count) < 7;'
+          then:
+            - globals.set: { id: b1_hold_active, value: "true" }
+            - globals.set: { id: b1_consumed, value: "true" }
+            - cover.close: ropener_cover
+            - logger.log: "Button 1 held: closing while held"
+  - id: b2_hold_check
+    mode: restart
+    then:
+      - delay: ${hold_run_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(b2_down) && !id(b1_down) && id(global_state) == 0;'
+          then:
+            - globals.set: { id: b2_hold_active, value: "true" }
+            - globals.set: { id: b2_consumed, value: "true" }
+            - cover.open: ropener_cover
+            - logger.log: "Button 2 held: opening while held"
+
+  # Single-tap close for Button 1 (deferred so a 7-tap burst can chain).
+  - id: b1_tap_commit
+    mode: restart
+    then:
+      - delay: ${tap_window_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(global_state) == 0 && id(b1_tap_count) < 7;'
+          then:
+            - cover.close: ropener_cover
+            - logger.log: "Button 1 tap: closing"
+      - globals.set: { id: b1_tap_count, value: "0" }
+
+  # Two-button "set home" combo.
+  - id: combo_home
+    mode: restart
+    then:
+      - delay: ${combo_home_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(b1_down) && id(b2_down);'
+          then:
+            - script.execute: set_home_zero
+            - globals.set: { id: b1_consumed, value: "true" }
+            - globals.set: { id: b2_consumed, value: "true" }
+            - globals.set: { id: b1_tap_count, value: "0" }
+            - logger.log: "Both buttons held: home position set"
+
+  # ---- Scheduling contract (called by common/scheduling.yaml) ----------------
+  # scheduling decides WHEN; these decide HOW. Guard against interrupting homing.
+  - id: schedule_open
+    then:
+      - if:
+          condition:
+            lambda: 'return id(global_state) != 3;'
+          then:
+            - cover.open: ropener_cover
+  - id: schedule_close
+    then:
+      - if:
+          condition:
+            lambda: 'return id(global_state) != 3;'
+          then:
+            - cover.close: ropener_cover
+
+# --- Attach Ropener button behaviour onto core's bare buttons (btn1/btn2/btn3)
+binary_sensor:
+  - id: !extend btn1
+    on_press:
+      - globals.set: { id: b1_down, value: "true" }
+      - if:
+          condition: { lambda: 'return id(global_state) == 3;' }
+          then:
+            - script.stop: b1_hold_check
+            - script.stop: b1_tap_commit
+            - script.execute: set_home_zero
+            - globals.set: { id: b1_consumed, value: "true" }
+            - globals.set: { id: b1_tap_count, value: "0" }
+            - logger.log: "Homing cancelled (Button 1)"
+          else:
+            - if:
+                condition: { lambda: 'return id(global_state) == 1 || id(global_state) == 2;' }
+                then:
+                  - script.stop: b1_hold_check
+                  - script.stop: b1_tap_commit
+                  - cover.stop: ropener_cover
+                  - globals.set: { id: b1_consumed, value: "true" }
+                  - globals.set: { id: b1_tap_count, value: "0" }
+                else:
+                  - if:
+                      condition: { lambda: 'return id(b2_down);' }
+                      then:
+                        - script.stop: b1_hold_check
+                        - script.stop: b2_hold_check
+                        - script.stop: b1_tap_commit
+                        - cover.stop: ropener_cover
+                        - globals.set: { id: b1_hold_active, value: "false" }
+                        - globals.set: { id: b2_hold_active, value: "false" }
+                        - globals.set: { id: b1_consumed, value: "true" }
+                        - globals.set: { id: b2_consumed, value: "true" }
+                        - script.execute: combo_home
+                      else:
+                        - script.stop: b1_tap_commit
+                        - lambda: |-
+                            uint32_t now = millis();
+                            if (now - id(b1_last_tap_ms) > ${tap_window_ms}) id(b1_tap_count) = 0;
+                            id(b1_tap_count) += 1;
+                            id(b1_last_tap_ms) = now;
+                        - globals.set: { id: b1_consumed, value: "false" }
+                        - if:
+                            condition: { lambda: 'return id(b1_tap_count) >= 7;' }
+                            then:
+                              - script.stop: b1_hold_check
+                              - globals.set: { id: b1_tap_count, value: "0" }
+                              - globals.set: { id: b1_consumed, value: "true" }
+                              - script.execute: start_homing
+                              - logger.log: "Button 1 x7: starting homing"
+                            else:
+                              - script.execute: b1_hold_check
+    on_release:
+      - globals.set: { id: b1_down, value: "false" }
+      - script.stop: b1_hold_check
+      - script.stop: combo_home
+      - if:
+          condition: { lambda: 'return id(b1_hold_active);' }
+          then:
+            - cover.stop: ropener_cover
+            - globals.set: { id: b1_hold_active, value: "false" }
+            - globals.set: { id: b1_consumed, value: "false" }
+            - logger.log: "Button 1 released: stopped"
+          else:
+            - if:
+                condition: { lambda: 'return id(b1_consumed);' }
+                then:
+                  - globals.set: { id: b1_consumed, value: "false" }
+                else:
+                  - script.execute: b1_tap_commit
+
+  - id: !extend btn2
+    on_press:
+      - globals.set: { id: b2_down, value: "true" }
+      - if:
+          condition: { lambda: 'return id(global_state) == 3;' }
+          then:
+            - script.stop: b2_hold_check
+            - script.execute: set_home_zero
+            - globals.set: { id: b2_consumed, value: "true" }
+            - logger.log: "Homing cancelled (Button 2)"
+          else:
+            - if:
+                condition: { lambda: 'return id(global_state) == 1 || id(global_state) == 2;' }
+                then:
+                  - script.stop: b2_hold_check
+                  - cover.stop: ropener_cover
+                  - globals.set: { id: b2_consumed, value: "true" }
+                else:
+                  - if:
+                      condition: { lambda: 'return id(b1_down);' }
+                      then:
+                        - script.stop: b1_hold_check
+                        - script.stop: b2_hold_check
+                        - script.stop: b1_tap_commit
+                        - cover.stop: ropener_cover
+                        - globals.set: { id: b1_hold_active, value: "false" }
+                        - globals.set: { id: b2_hold_active, value: "false" }
+                        - globals.set: { id: b1_consumed, value: "true" }
+                        - globals.set: { id: b2_consumed, value: "true" }
+                        - globals.set: { id: b1_tap_count, value: "0" }
+                        - script.execute: combo_home
+                      else:
+                        - globals.set: { id: b2_consumed, value: "false" }
+                        - script.execute: b2_hold_check
+    on_release:
+      - globals.set: { id: b2_down, value: "false" }
+      - script.stop: b2_hold_check
+      - script.stop: combo_home
+      - if:
+          condition: { lambda: 'return id(b2_hold_active);' }
+          then:
+            - cover.stop: ropener_cover
+            - globals.set: { id: b2_hold_active, value: "false" }
+            - globals.set: { id: b2_consumed, value: "false" }
+            - logger.log: "Button 2 released: stopped"
+          else:
+            - if:
+                condition: { lambda: 'return id(b2_consumed);' }
+                then:
+                  - globals.set: { id: b2_consumed, value: "false" }
+                else:
+                  - cover.open: ropener_cover
+                  - logger.log: "Button 2 tap: opening"
+
+  # Rename core's "Button 3 (Wi-Fi reset)" to Ropener's "WiFi Reset" and attach
+  # the hold-to-erase-credentials action.
+  - id: !extend btn3
+    name: "WiFi Reset"
+    on_click:
+      - min_length: 3000ms
+        max_length: 10000ms
+        then:
+          - logger.log: "Clearing saved Wi-Fi credentials and rebooting into setup"
+          - lambda: |-
+              esphome::wifi::global_wifi_component->save_wifi_sta("", "");
+              esphome::wifi::global_wifi_component->clear_sta();
+          - delay: 1s
+          - lambda: "App.safe_reboot();"
+
+# --- Rename core tuning entities to Ropener's existing entity_ids -------------
+number:
+  - id: !extend num_irun
+    name: "IRUN value"
+  - id: !extend num_tcoolthrs
+    name: "TCOOLTHRS value"
+  - id: !extend num_sgthrs
+    name: "SGTHRS value"
+  # Product-only: travel distance in centimeters (drives the cover's 0..1 range).
+  - platform: template
+    name: "Centimeters"
+    web_server: { sorting_weight: 1, sorting_group_id: group_setup }
+    step: 1
+    min_value: 1
+    max_value: 9000
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_distance_cm);
+    update_interval: 1s
+    set_action:
+      then:
+        - globals.set: { id: global_distance_cm, value: !lambda "return x;" }
+        - script.execute: recompute_distance
+
+sensor:
+  - id: !extend sen_sgresult
+    name: "SG_RESULT Sensor"
+  - id: !extend sen_tstep
+    name: "TSTEP Sensor"
+
+# --- The curtain cover --------------------------------------------------------
+cover:
+  - platform: template
+    id: ropener_cover
+    name: Ropener
+    web_server: { sorting_weight: 1, sorting_group_id: group_control }
+    has_position: true
+    assumed_state: false
+    lambda: "return float(id(driver)->current_position) / float(id(global_distance_steps));"
+    stop_action:
+      - stepper.stop: driver
+      - globals.set: { id: global_state, value: "0" }
+      - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+    open_action:
+      - globals.set: { id: global_state, value: "1" }
+      - cover.template.publish: { id: ropener_cover, current_operation: OPENING }
+      - stepper.set_target: { id: driver, target: !lambda return id(global_distance_steps); }
+    close_action:
+      - globals.set: { id: global_state, value: "2" }
+      - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
+      - stepper.set_target: { id: driver, target: 0 }
+    position_action:
+      - if:
+          condition:
+            lambda: 'return (pos * id(global_distance_steps)) >= id(driver)->current_position;'
+          then:
+            - globals.set: { id: global_state, value: "1" }
+            - cover.template.publish: { id: ropener_cover, current_operation: OPENING }
+          else:
+            - globals.set: { id: global_state, value: "2" }
+            - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
+      - stepper.set_target: { id: driver, target: !lambda return pos * id(global_distance_steps); }
+
+button:
+  - platform: template
+    name: "Start-Stop Homing"
+    web_server: { sorting_weight: 3, sorting_group_id: group_control }
+    entity_category: DIAGNOSTIC
+    on_press:
+      - if:
+          condition: { lambda: 'return id(global_state) == 3;' }
+          then:
+            - stepper.stop: driver
+            - stepper.report_position: { id: driver, position: 0 }
+            - stepper.set_target: { id: driver, target: 0 }
+            - globals.set: { id: global_state, value: "0" }
+            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+          else:
+            - globals.set: { id: global_state, value: "3" }
+            - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
+            - stepper.report_position: { id: driver, position: 0 }
+            - stepper.set_target: { id: driver, target: -100000 }
+
+text_sensor:
+  - platform: template
+    name: "State"
+    id: cover_state
+    web_server: { sorting_weight: 2, sorting_group_id: group_control }
+    update_interval: 500ms
+    lambda: |-
+      switch (id(global_state)) {
+        case 1: return {"OPENING"};
+        case 2: return {"CLOSING"};
+        case 3: return {"HOMING"};
+        default: return {"IDLE"};
+      }
+
+# Motion-completion poll: persist position; flip OPENING/CLOSING back to IDLE
+# when the stepper reaches target. (The sun-schedule poll lives in scheduling.)
+interval:
+  - interval: 200ms
+    then:
+      - globals.set:
+          id: global_current_position
+          value: !lambda "return id(driver)->current_position;"
+      - if:
+          condition:
+            lambda: |-
+              int s = id(global_state);
+              return (s == 1 || s == 2) &&
+                     id(driver)->current_position == id(driver)->target_position;
+          then:
+            - globals.set: { id: global_state, value: "0" }
+            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+            - globals.set: { id: b1_hold_active, value: "false" }
+            - globals.set: { id: b2_hold_active, value: "false" }

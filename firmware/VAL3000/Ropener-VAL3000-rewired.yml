@@ -1,0 +1,43 @@
+# =============================================================================
+# Ropener — VAL3000 (ESP32-C3)  [REWIRED: consumes valar-core remotely]
+# =============================================================================
+# Board wrapper: sets this board's chip, GPIO map, and OTA identity, then pulls
+# in the shared valar-core + scheduling from the valar-motion repo as remote
+# packages and layers the Ropener product on top. This board has no status LED.
+# =============================================================================
+substitutions:
+  device_name: "ropener"
+  friendly_name: "Ropener Curtain"
+  board_id: "VAL3000 (ESP32-C3)"
+  esp_board: "esp32-c3-devkitm-1"
+  log_uart: "USB_SERIAL_JTAG"
+  ota_repo: "Valar-Systems/Ropener"
+  ota_asset: "Ropener-VAL3000"
+  fw_version: "2.6.4"
+  # GPIO map (ESP32-C3)
+  pin_uart_tx: "6"
+  pin_uart_rx: "5"
+  pin_enn: "8"
+  pin_index: "0"
+  pin_diag: "1"
+  pin_btn1: "4"
+  pin_btn2: "3"
+  pin_btn_wifi: "7"
+
+esphome:
+  project:
+    name: "valar-systems.ropener"
+    version: "${fw_version}"
+
+packages:
+  valar_core:
+    url: https://github.com/Valar-Systems/valar-motion
+    ref: bc869f79de63a1b2fa39234f81bdd500bef94669
+    files: [common/valar-core.yaml]
+    refresh: 1d
+  scheduling:
+    url: https://github.com/Valar-Systems/valar-motion
+    ref: bc869f79de63a1b2fa39234f81bdd500bef94669
+    files: [common/scheduling.yaml]
+    refresh: 1d
+  product: !include ../common/ropener-product.yaml

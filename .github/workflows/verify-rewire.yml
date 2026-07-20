@@ -1,0 +1,29 @@
+# Verification-only build for the valar-core rewire branch. Compiles the rewired
+# board configs (which pull valar-core + scheduling from valar-motion as remote
+# packages) on GitHub runners, which have the full network access needed for the
+# ESP-IDF toolchain download. No release/attach — this only proves it builds.
+name: Verify rewire build
+
+on:
+  push:
+    branches: ['rewire/valar-core']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - firmware/VAL3000/Ropener-VAL3000-rewired.yml
+          - firmware/VAL3100/Ropener-VAL3100-rewired.yml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ESPHome
+        run: pip install esphome
+      - name: Compile ${{ matrix.config }}
+        run: esphome compile "${{ matrix.config }}"
