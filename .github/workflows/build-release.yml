@@ -1,0 +1,62 @@
+# Build the Ropener firmware for every board and, on a tag, attach the factory
+# + OTA binaries (and the .ota.bin.md5 the on-device "Update Firmware" button
+# needs) to the GitHub release. Field units self-update by asset name, so keep
+# the Ropener-VAL3000 / Ropener-VAL3100 names stable.
+name: Build firmware
+
+on:
+  push:
+    branches: [main, 'rewire/valar-core']   # rewire/* verifies the branch pre-merge; remove after merge
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: firmware/VAL3000/Ropener-VAL3000.yml
+            asset: Ropener-VAL3000
+          - config: firmware/VAL3100/Ropener-VAL3100.yml
+            asset: Ropener-VAL3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ESPHome
+        run: pip install esphome
+
+      # On a tag build, stamp the release version (strip a leading "v") so the
+      # on-device "Firmware Version" matches the release the unit is running.
+      - name: Compile ${{ matrix.asset }}
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            V="${{ github.ref_name }}"; V="${V#v}"
+            esphome -s fw_version "$V" compile "${{ matrix.config }}"
+          else
+            esphome compile "${{ matrix.config }}"
+          fi
+
+      - name: Collect binaries + md5
+        run: |
+          mkdir -p dist
+          F=$(find . -path "*/.pioenvs/*/firmware.factory.bin" | head -1)
+          O=$(find . -path "*/.pioenvs/*/firmware.ota.bin" | head -1)
+          cp "$F" "dist/${{ matrix.asset }}.factory.bin"
+          cp "$O" "dist/${{ matrix.asset }}.ota.bin"
+          md5sum "dist/${{ matrix.asset }}.ota.bin" | cut -d' ' -f1 > "dist/${{ matrix.asset }}.ota.bin.md5"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/*
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

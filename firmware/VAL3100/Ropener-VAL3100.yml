@@ -1,28 +1,27 @@
 # =============================================================================
-# Ropener — VAL3000 (ESP32-C3)  [REWIRED: consumes valar-core remotely]
+# Ropener — VAL3100 (ESP32-C6)
 # =============================================================================
 # Board wrapper: sets this board's chip, GPIO map, and OTA identity, then pulls
-# in the shared valar-core + scheduling from the valar-motion repo as remote
-# packages and layers the Ropener product on top. This board has no status LED.
+# in the shared valar-core + scheduling from Valar-Systems/valar-motion as remote
+# packages and layers the Ropener product on top. No board firmware is copied.
 # =============================================================================
 substitutions:
   device_name: "ropener"
   friendly_name: "Ropener Curtain"
-  board_id: "VAL3000 (ESP32-C3)"
-  esp_board: "esp32-c3-devkitm-1"
+  board_id: "VAL3100 (ESP32-C6)"
+  esp_board: "esp32-c6-devkitc-1"
   log_uart: "USB_SERIAL_JTAG"
-  ota_repo: "Valar-Systems/Ropener"
-  ota_asset: "Ropener-VAL3000"
-  fw_version: "2.6.4"
-  # GPIO map (ESP32-C3)
-  pin_uart_tx: "6"
-  pin_uart_rx: "5"
-  pin_enn: "8"
-  pin_index: "0"
-  pin_diag: "1"
-  pin_btn1: "4"
-  pin_btn2: "3"
-  pin_btn_wifi: "7"
+  ota_repo: "Valar-Systems/Ropener"     # field units self-update from Ropener's own releases
+  ota_asset: "Ropener-VAL3100"
+  fw_version: "2.7.0"
+  pin_uart_tx: "0"
+  pin_uart_rx: "1"
+  pin_enn: "5"
+  pin_index: "7"
+  pin_diag: "6"
+  pin_btn1: "3"
+  pin_btn2: "19"
+  pin_btn_wifi: "4"
 
 esphome:
   project:
@@ -32,12 +31,21 @@ esphome:
 packages:
   valar_core:
     url: https://github.com/Valar-Systems/valar-motion
-    ref: bc869f79de63a1b2fa39234f81bdd500bef94669
+    ref: v0.2.0
     files: [common/valar-core.yaml]
     refresh: 1d
   scheduling:
     url: https://github.com/Valar-Systems/valar-motion
-    ref: bc869f79de63a1b2fa39234f81bdd500bef94669
+    ref: v0.2.0
     files: [common/scheduling.yaml]
     refresh: 1d
   product: !include ../common/ropener-product.yaml
+
+light:
+  - platform: status_led
+    name: "Status LED"
+    id: status_led_light
+    web_server: { sorting_weight: 5, sorting_group_id: group_diagnostics }
+    pin:
+      number: GPIO23
+      inverted: false
