@@ -6,7 +6,7 @@ name: Build firmware
 
 on:
   push:
-    branches: [main, 'rewire/valar-core']   # rewire/* verifies the branch pre-merge; remove after merge
+    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
