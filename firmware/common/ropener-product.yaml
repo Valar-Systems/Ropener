@@ -29,6 +29,19 @@ substitutions:
 # stepper; here we resync the derived step count and restore the saved position
 # so the cover comes up accurate without a re-home. (scheduling re-applies
 # tz/location at priority -100, after this.)
+# The API's reboot_timeout defaults to 15 min: if no *API* client connects in
+# that window the device reboots. It counts native-API clients only — a browser
+# on the web UI is not one. The Ropener is sold as working without Home
+# Assistant, so a customer driving it purely from the browser got a controller
+# that rebooted every 15 minutes, stopping the curtain mid-travel if it happened
+# to be moving. 0 = never reboot for lack of a client.
+#
+# Trade-off: this also removes the watchdog that recovers a wedged API
+# connection. Acceptable here — the users it was rebooting are the ones not
+# using the API at all — and safe_mode still covers boot loops.
+api:
+  reboot_timeout: 0s
+
 esphome:
   on_boot:
     - priority: 400.0
