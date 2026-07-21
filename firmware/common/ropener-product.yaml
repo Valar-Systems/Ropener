@@ -29,6 +29,19 @@ substitutions:
 # stepper; here we resync the derived step count and restore the saved position
 # so the cover comes up accurate without a re-home. (scheduling re-applies
 # tz/location at priority -100, after this.)
+# The API's reboot_timeout defaults to 15 min: if no *API* client connects in
+# that window the device reboots. It counts native-API clients only — a browser
+# on the web UI is not one. The Ropener is sold as working without Home
+# Assistant, so a customer driving it purely from the browser got a controller
+# that rebooted every 15 minutes, stopping the curtain mid-travel if it happened
+# to be moving. 0 = never reboot for lack of a client.
+#
+# Trade-off: this also removes the watchdog that recovers a wedged API
+# connection. Acceptable here — the users it was rebooting are the ones not
+# using the API at all — and safe_mode still covers boot loops.
+api:
+  reboot_timeout: 0s
+
 esphome:
   on_boot:
     - priority: 400.0
@@ -57,6 +70,40 @@ globals:
   - { id: b2_consumed,    type: bool,     restore_value: no, initial_value: 'false' }
   - { id: b1_tap_count,   type: int,      restore_value: no, initial_value: '0' }
   - { id: b1_last_tap_ms, type: uint32_t, restore_value: no, initial_value: '0' }
+
+# --- Stall handling (homing) ------------------------------------------------
+# The Ropener homes sensorlessly: drive at the closed end until StallGuard fires,
+# and treat THAT stall as position 0. Core's default on_stall zeroes the position
+# unconditionally, which is wrong here — a stall mid-travel (curtain snags) would
+# silently redefine that spot as home and corrupt the cover's position reference.
+#
+# `!extend` APPENDS to core's action list rather than replacing it, so extending
+# alone would leave core's unconditional zeroing firing before ours. The two
+# entries below are deliberate and order-dependent: the first deletes core's
+# handler outright, the second installs the Ropener's conditional one. Verified
+# against the resolved config — exactly one on_stall survives. Keep both.
+stepper:
+  - id: !extend driver
+    on_stall: !remove
+  - id: !extend driver
+    on_stall:
+      - stepper.stop: driver
+      - if:
+          condition:
+            lambda: 'return id(global_state) == 3;'
+          then:
+            - stepper.report_position: { id: driver, position: 0 }
+            - stepper.set_target: { id: driver, target: 0 }
+            - globals.set: { id: global_state, value: "0" }
+            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+            - logger.log: "Homed cover"
+          # Stall outside homing (curtain snagged, or it hit the far end): stop
+          # and settle the UI back to idle, but LEAVE the position alone — this
+          # point is not home, and zeroing here is what corrupted v2.7.0.
+          else:
+            - globals.set: { id: global_state, value: "0" }
+            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+            - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
 
 script:
   # Recompute the derived step cache from the persisted centimeters (one place).
@@ -298,6 +345,27 @@ binary_sensor:
           - delay: 1s
           - lambda: "App.safe_reboot();"
 
+# --- Preserve the shipped "Motor Direction" option strings --------------------
+# Field units (and any Home Assistant automation that selects a direction) know
+# this option as "Reversed ↺" — the glyph is part of the string, not decoration.
+# valar-core dropped it to a plain "Reversed", which would silently break those
+# automations and leave existing units holding an option that no longer exists.
+# `options` is a list, so !extend would APPEND and yield three choices; remove
+# then re-add instead. `lambda` is a scalar, so extending overwrites it cleanly.
+# Core's set_action matches on `x.find("Reversed")`, which still hits — no
+# override needed there.
+select:
+  - id: !extend sel_direction
+    options: !remove
+  - id: !extend sel_direction
+    options:
+      - "Normal"
+      - "Reversed ↺"
+    lambda: |-
+      if (id(global_stepper_direction) == esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE)
+        return std::string("Reversed ↺");
+      return std::string("Normal");
+
 # --- Rename core tuning entities to Ropener's existing entity_ids -------------
 number:
   - id: !extend num_irun
@@ -333,6 +401,10 @@ cover:
   - platform: template
     id: ropener_cover
     name: Ropener
+    # A curtain draws sideways, not up and down. With no device_class the UI
+    # falls back to generic up/down arrows; "curtain" gets the horizontal
+    # open/close controls (and the right icon in Home Assistant).
+    device_class: curtain
     web_server: { sorting_weight: 1, sorting_group_id: group_control }
     has_position: true
     assumed_state: false

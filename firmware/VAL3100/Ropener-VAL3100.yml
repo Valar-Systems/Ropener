@@ -13,7 +13,9 @@ substitutions:
   log_uart: "USB_SERIAL_JTAG"
   ota_repo: "Valar-Systems/Ropener"     # field units self-update from Ropener's own releases
   ota_asset: "Ropener-VAL3100"
-  fw_version: "2.7.0"
+  # "dev" for local/branch builds; the release workflow overrides it with the
+  # git tag (-s fw_version) so shipped units report the version they run.
+  fw_version: "dev"
   pin_uart_tx: "0"
   pin_uart_rx: "1"
   pin_enn: "5"
