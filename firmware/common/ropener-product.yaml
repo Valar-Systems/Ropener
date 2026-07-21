@@ -388,6 +388,10 @@ cover:
   - platform: template
     id: ropener_cover
     name: Ropener
+    # A curtain draws sideways, not up and down. With no device_class the UI
+    # falls back to generic up/down arrows; "curtain" gets the horizontal
+    # open/close controls (and the right icon in Home Assistant).
+    device_class: curtain
     web_server: { sorting_weight: 1, sorting_group_id: group_control }
     has_position: true
     assumed_state: false
