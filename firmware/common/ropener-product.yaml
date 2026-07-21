@@ -47,6 +47,7 @@ esphome:
     - priority: 400.0
       then:
         - script.execute: recompute_distance
+        - script.execute: recompute_tcoolthrs
         - stepper.report_position:
             id: driver
             position: !lambda "return id(global_current_position);"
@@ -106,6 +107,31 @@ stepper:
             - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
 
 script:
+  # Derive TCOOLTHRS from the configured Speed.
+  #
+  # StallGuard only reports while TSTEP <= TCOOLTHRS, and TSTEP is inversely
+  # proportional to velocity. Measured on VAL3000 hardware (microsteps=8),
+  # within 1% from Speed 3000 to 9000 under real curtain load:
+  #
+  #     TSTEP ~= 374000 / Speed
+  #
+  # So the shipped default of TCOOLTHRS=100 arms only above Speed ~3740. Below
+  # that, StallGuard is switched off entirely -- no error, no log line, nothing
+  # in the UI, and homing simply never completes. That is a setting a customer
+  # can reach just by dragging the Speed slider down for a quieter curtain.
+  #
+  # 2x cruise TSTEP arms from half of cruise speed upward at any Speed, which
+  # keeps the deliberate low-velocity cutoff (SG_RESULT is unreliable when slow,
+  # which is what TCOOLTHRS is for) while guaranteeing it actually engages.
+  - id: recompute_tcoolthrs
+    then:
+      - lambda: |-
+          uint32_t sp = id(global_speed) > 0 ? (uint32_t) id(global_speed) : 1;
+          uint32_t v = 748000UL / sp;
+          if (v > 1048575) v = 1048575;      // TCOOLTHRS is a 20-bit register
+          id(global_tcoolthrs) = (int) v;
+          id(driver)->write_register(TCOOLTHRS, v);
+
   # Recompute the derived step cache from the persisted centimeters (one place).
   - id: recompute_distance
     then:
@@ -374,6 +400,12 @@ number:
     name: "TCOOLTHRS value"
   - id: !extend num_sgthrs
     name: "SGTHRS value"
+  # Re-derive TCOOLTHRS whenever Speed changes. !extend APPENDS to core's action
+  # list, which is what we want here: core still stores global_speed and pushes
+  # the new speed to the driver, then this runs.
+  - id: !extend num_speed
+    set_action:
+      - script.execute: recompute_tcoolthrs
   # Product-only: travel distance in centimeters (drives the cover's 0..1 range).
   - platform: template
     name: "Centimeters"
@@ -454,6 +486,35 @@ button:
             - stepper.set_target: { id: driver, target: -100000 }
 
 text_sensor:
+  # Surfaces StallGuard's arming state, which is otherwise invisible. The
+  # failure it exists to catch: if TCOOLTHRS is below the cruise TSTEP for the
+  # configured Speed, StallGuard NEVER reports, homing never completes, and
+  # nothing anywhere says so. Diagnosed here from the configured Speed, so a
+  # misconfiguration is visible while the curtain is standing still rather than
+  # only discovered when homing silently fails.
+  #
+  # "Below threshold" during acceleration is normal and expected -- StallGuard
+  # is deliberately disarmed at low velocity, which is what TCOOLTHRS is for.
+  # A reading that never leaves it once at speed is the real fault.
+  - platform: template
+    name: "StallGuard"
+    id: sg_status
+    icon: "mdi:shield-search"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 3, sorting_group_id: group_stallguard }
+    update_interval: 1s
+    lambda: |-
+      const uint32_t tc = id(driver)->read_register(TCOOLTHRS);
+      // Predicted cruise TSTEP for the configured Speed (measured constant).
+      const uint32_t sp = id(global_speed) > 0 ? (uint32_t) id(global_speed) : 1;
+      const uint32_t cruise = 374000UL / sp;
+      if (cruise > tc)
+        return {"Never arms at this Speed"};
+      const uint32_t ts = id(driver)->read_register(TSTEP);
+      if (ts >= 0xFFFFF) return {"Ready (stopped)"};
+      if (ts <= tc)      return {"Armed"};
+      return {"Below threshold"};
+
   - platform: template
     name: "State"
     id: cover_state
