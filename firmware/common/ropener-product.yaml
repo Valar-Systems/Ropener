@@ -58,6 +58,40 @@ globals:
   - { id: b1_tap_count,   type: int,      restore_value: no, initial_value: '0' }
   - { id: b1_last_tap_ms, type: uint32_t, restore_value: no, initial_value: '0' }
 
+# --- Stall handling (homing) ------------------------------------------------
+# The Ropener homes sensorlessly: drive at the closed end until StallGuard fires,
+# and treat THAT stall as position 0. Core's default on_stall zeroes the position
+# unconditionally, which is wrong here — a stall mid-travel (curtain snags) would
+# silently redefine that spot as home and corrupt the cover's position reference.
+#
+# `!extend` APPENDS to core's action list rather than replacing it, so extending
+# alone would leave core's unconditional zeroing firing before ours. The two
+# entries below are deliberate and order-dependent: the first deletes core's
+# handler outright, the second installs the Ropener's conditional one. Verified
+# against the resolved config — exactly one on_stall survives. Keep both.
+stepper:
+  - id: !extend driver
+    on_stall: !remove
+  - id: !extend driver
+    on_stall:
+      - stepper.stop: driver
+      - if:
+          condition:
+            lambda: 'return id(global_state) == 3;'
+          then:
+            - stepper.report_position: { id: driver, position: 0 }
+            - stepper.set_target: { id: driver, target: 0 }
+            - globals.set: { id: global_state, value: "0" }
+            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+            - logger.log: "Homed cover"
+          # Stall outside homing (curtain snagged, or it hit the far end): stop
+          # and settle the UI back to idle, but LEAVE the position alone — this
+          # point is not home, and zeroing here is what corrupted v2.7.0.
+          else:
+            - globals.set: { id: global_state, value: "0" }
+            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+            - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+
 script:
   # Recompute the derived step cache from the persisted centimeters (one place).
   - id: recompute_distance
@@ -297,6 +331,27 @@ binary_sensor:
               esphome::wifi::global_wifi_component->clear_sta();
           - delay: 1s
           - lambda: "App.safe_reboot();"
+
+# --- Preserve the shipped "Motor Direction" option strings --------------------
+# Field units (and any Home Assistant automation that selects a direction) know
+# this option as "Reversed ↺" — the glyph is part of the string, not decoration.
+# valar-core dropped it to a plain "Reversed", which would silently break those
+# automations and leave existing units holding an option that no longer exists.
+# `options` is a list, so !extend would APPEND and yield three choices; remove
+# then re-add instead. `lambda` is a scalar, so extending overwrites it cleanly.
+# Core's set_action matches on `x.find("Reversed")`, which still hits — no
+# override needed there.
+select:
+  - id: !extend sel_direction
+    options: !remove
+  - id: !extend sel_direction
+    options:
+      - "Normal"
+      - "Reversed ↺"
+    lambda: |-
+      if (id(global_stepper_direction) == esphome::tmc2209::ShaftDirection::COUNTERCLOCKWISE)
+        return std::string("Reversed ↺");
+      return std::string("Normal");
 
 # --- Rename core tuning entities to Ropener's existing entity_ids -------------
 number:
