@@ -24,6 +24,12 @@ substitutions:
   hold_run_ms: "700"               # press longer than this = hold-to-run
   tap_window_ms: "400"             # rapid-tap chaining window
   combo_home_ms: "3000"            # both buttons held this long = set home
+  home_speed: "3000"               # homing runs at this fixed speed (above the
+                                   # ~2000 drivetrain resonance; gentle into the
+                                   # stop; ~14 s for a full 1 m travel)
+  home_timeout_s: "60"             # homing auto-aborts after this if not stopped
+                                   # -- backstops an accidental press and a
+                                   # mis-tuned StallGuard that never fires
 
 # Product boot steps. Core (priority 600) has already configured the TMC2209 and
 # stepper; here we resync the derived step count and restore the saved position
@@ -47,6 +53,7 @@ esphome:
     - priority: 400.0
       then:
         - script.execute: recompute_distance
+        - script.execute: recompute_tcoolthrs
         - stepper.report_position:
             id: driver
             position: !lambda "return id(global_current_position);"
@@ -86,26 +93,58 @@ stepper:
   - id: !extend driver
     on_stall: !remove
   - id: !extend driver
+    # StallGuard is an OPT-IN advanced feature (sg_enabled, default OFF). When it
+    # is off, this handler no-ops even if the chip flags a stall, so the default
+    # product never reacts to StallGuard at all — homing is fully manual. `!extend`
+    # APPENDS, so the two entries above are order-dependent: !remove deletes core's
+    # unconditional zeroing, then this installs ours. Verified against the resolved
+    # config — exactly one on_stall survives.
     on_stall:
-      - stepper.stop: driver
       - if:
           condition:
-            lambda: 'return id(global_state) == 3;'
+            lambda: 'return id(sg_enabled).state;'
           then:
-            - stepper.report_position: { id: driver, position: 0 }
-            - stepper.set_target: { id: driver, target: 0 }
-            - globals.set: { id: global_state, value: "0" }
-            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
-            - logger.log: "Homed cover"
-          # Stall outside homing (curtain snagged, or it hit the far end): stop
-          # and settle the UI back to idle, but LEAVE the position alone — this
-          # point is not home, and zeroing here is what corrupted v2.7.0.
-          else:
-            - globals.set: { id: global_state, value: "0" }
-            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
-            - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+            - stepper.stop: driver
+            - if:
+                condition:
+                  lambda: 'return id(global_state) == 3;'
+                then:
+                  # Genuine stall while homing = the end stop. Commit home.
+                  - script.execute: home_finish
+                # Stall outside homing (snag, or hit the far end): stop and settle,
+                # but LEAVE position alone — this point is not home, and zeroing
+                # here is what corrupted v2.7.0.
+                else:
+                  - globals.set: { id: global_state, value: "0" }
+                  - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+                  - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
 
 script:
+  # Derive TCOOLTHRS from the configured Speed.
+  #
+  # StallGuard only reports while TSTEP <= TCOOLTHRS, and TSTEP is inversely
+  # proportional to velocity. Measured on VAL3000 hardware (microsteps=8),
+  # within 1% from Speed 3000 to 9000 under real curtain load:
+  #
+  #     TSTEP ~= 374000 / Speed
+  #
+  # So the shipped default of TCOOLTHRS=100 arms only above Speed ~3740. Below
+  # that, StallGuard is switched off entirely -- no error, no log line, nothing
+  # in the UI, and homing simply never completes. That is a setting a customer
+  # can reach just by dragging the Speed slider down for a quieter curtain.
+  #
+  # 2x cruise TSTEP arms from half of cruise speed upward at any Speed, which
+  # keeps the deliberate low-velocity cutoff (SG_RESULT is unreliable when slow,
+  # which is what TCOOLTHRS is for) while guaranteeing it actually engages.
+  - id: recompute_tcoolthrs
+    then:
+      - lambda: |-
+          uint32_t sp = id(global_speed) > 0 ? (uint32_t) id(global_speed) : 1;
+          uint32_t v = 748000UL / sp;
+          if (v > 1048575) v = 1048575;      // TCOOLTHRS is a 20-bit register
+          id(global_tcoolthrs) = (int) v;
+          id(driver)->write_register(TCOOLTHRS, v);
+
   # Recompute the derived step cache from the persisted centimeters (one place).
   - id: recompute_distance
     then:
@@ -113,22 +152,75 @@ script:
           id: global_distance_steps
           value: !lambda "return (float(id(global_distance_cm)) / ${gear_distance_cm}) * ${steps_per_revolution};"
 
-  # Sensorless homing: drive toward the closed end until StallGuard fires.
-  - id: start_homing
+  # --- Homing (manual by default; StallGuard only assists when sg_enabled) -----
+  # Drive toward the closed end at a fixed gentle speed. It ends one of three
+  # ways: the user presses Start-Stop again (home_finish), the timeout fires
+  # (home_abort), or -- only if sg_enabled -- StallGuard trips (home_finish).
+  #
+  # Drives RELATIVE (current - 100000) and does NOT zero at start, so an aborted
+  # home leaves the position honest instead of committing a false zero. Home is
+  # committed to 0 only by a deliberate finish.
+  - id: home_start
     then:
       - globals.set: { id: global_state, value: "3" }
       - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
-      - stepper.report_position: { id: driver, position: 0 }
-      - stepper.set_target: { id: driver, target: -100000 }
-      - logger.log: "Starting homing"
+      - stepper.set_speed:
+          id: driver
+          speed: ${home_speed}
+      - stepper.set_target:
+          id: driver
+          target: !lambda "return id(driver)->current_position - 100000;"
+      - script.execute: home_timeout
+      - logger.log: "Homing started — press Start-Stop again at the closed end to set home"
 
-  # Declare current position as home (0).
-  - id: set_home_zero
+  # Reached the real closed end: commit position 0 as home, restore run speed.
+  - id: home_finish
     then:
+      - script.stop: home_timeout
       - stepper.stop: driver
       - stepper.report_position: { id: driver, position: 0 }
       - stepper.set_target: { id: driver, target: 0 }
+      - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
       - globals.set: { id: global_state, value: "0" }
+      - globals.set: { id: global_current_position, value: "0" }
+      - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+      - logger.log: "Home set to 0"
+
+  # Timeout (or any abort): stop, restore run speed, and DO NOT set home. The
+  # position is left exactly where it is -- committing a home on an accidental or
+  # timed-out press is what corrupts the reference and inverts open/close.
+  - id: home_abort
+    then:
+      - stepper.stop: driver
+      - stepper.set_target:
+          id: driver
+          target: !lambda "return id(driver)->current_position;"
+      - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
+      - globals.set: { id: global_state, value: "0" }
+      - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+      - logger.log: "Homing timed out — aborted, home NOT set (position unchanged)"
+
+  # Unconditional backstop: if still homing after home_timeout_s, abort. Covers an
+  # accidental Start-Stop press AND a mis-tuned StallGuard that never trips.
+  - id: home_timeout
+    mode: restart
+    then:
+      - delay: ${home_timeout_s}s
+      - if:
+          condition: { lambda: 'return id(global_state) == 3;' }
+          then:
+            - script.execute: home_abort
+
+  # Declare current position as home (0) — the two-button "set home here" combo.
+  - id: set_home_zero
+    then:
+      - script.stop: home_timeout
+      - stepper.stop: driver
+      - stepper.report_position: { id: driver, position: 0 }
+      - stepper.set_target: { id: driver, target: 0 }
+      - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
+      - globals.set: { id: global_state, value: "0" }
+      - globals.set: { id: global_current_position, value: "0" }
       - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
       - logger.log: "Home position set to 0"
 
@@ -253,7 +345,7 @@ binary_sensor:
                               - script.stop: b1_hold_check
                               - globals.set: { id: b1_tap_count, value: "0" }
                               - globals.set: { id: b1_consumed, value: "true" }
-                              - script.execute: start_homing
+                              - script.execute: home_start
                               - logger.log: "Button 1 x7: starting homing"
                             else:
                               - script.execute: b1_hold_check
@@ -366,14 +458,92 @@ select:
         return std::string("Reversed ↺");
       return std::string("Normal");
 
+  # Friendly Slow / Medium / Fast speed, chosen to straddle the ~2000 drivetrain
+  # resonance (measured): Slow 1500 sits below it, Medium 5000 and Fast 9000 above.
+  # Like Motor Direction, this holds NO state of its own -- it reads and writes
+  # global_speed (the single source of truth, restored on boot) so it never fights
+  # the restored value. The raw Speed slider lives in the advanced group.
+  - platform: template
+    name: "Speed"
+    id: sel_speed
+    icon: "mdi:speedometer"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 1, sorting_group_id: group_tuning }
+    update_interval: 1s
+    options: ["Slow", "Medium", "Fast"]
+    lambda: |-
+      const int sp = id(global_speed);
+      if (sp <= 2000) return std::string("Slow");     // <= resonance edge
+      if (sp <= 6500) return std::string("Medium");
+      return std::string("Fast");
+    set_action:
+      - lambda: |-
+          int s = 9000;                                // Fast
+          if (x.find("Slow") != std::string::npos) s = 1500;
+          else if (x.find("Medium") != std::string::npos) s = 5000;
+          id(global_speed) = s;
+      - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
+      - script.execute: recompute_tcoolthrs
+      - lambda: |-
+          // Persist immediately, like Motor Direction, so the choice survives an
+          // unplug seconds later.
+          global_speed->update();
+          global_preferences->sync();
+
 # --- Rename core tuning entities to Ropener's existing entity_ids -------------
 number:
+  # Raw IRUN (register 1-31) is meaningless to users -- the friendly "Motor
+  # Current" number below drives it in milliamps instead. Keep the raw register
+  # in the advanced group for power users.
   - id: !extend num_irun
     name: "IRUN value"
+    web_server: { sorting_weight: 7, sorting_group_id: group_sg }
+  # Friendly motor current in mA. The driver knows Rsense (100 mOhm) and Vsense,
+  # so write_run_current_mA / read_run_current_mA do the register conversion --
+  # no formula here. Max is the register ceiling (~1915 mA at these settings);
+  # the motor is rated 2 A continuous, so nothing the driver can produce is
+  # thermally unsafe. Values snap to the nearest of 32 register steps (~60 mA).
+  - platform: template
+    name: "Motor Current"
+    id: num_motor_current
+    unit_of_measurement: "mA"
+    icon: "mdi:current-dc"
+    web_server: { sorting_weight: 3, sorting_group_id: group_tuning }
+    min_value: 100
+    max_value: 1900
+    step: 10
+    mode: BOX
+    entity_category: CONFIG
+    lambda: "return id(driver)->read_run_current_mA();"
+    update_interval: 5s
+    set_action:
+      - lambda: "id(driver)->write_run_current_mA((uint16_t) x);"
+      # Keep global_irun (persisted, reapplied in on_boot) in sync with the
+      # register field the driver just derived.
+      - globals.set:
+          id: global_irun
+          value: !lambda "return id(driver)->read_field(IRUN_FIELD);"
+  # TCOOLTHRS and SGTHRS are StallGuard tuning -> move them to the bottom group_sg
+  # (core puts them in group_stallguard, which we're retiring in favour of group_sg).
   - id: !extend num_tcoolthrs
     name: "TCOOLTHRS value"
+    web_server: { sorting_weight: 4, sorting_group_id: group_sg }
   - id: !extend num_sgthrs
     name: "SGTHRS value"
+    web_server: { sorting_weight: 3, sorting_group_id: group_sg }
+  # Raw Speed (steps/s) is now driven by the friendly Slow/Medium/Fast preset
+  # select below; keep the exact slider in the advanced group. !extend APPENDS to
+  # core's set_action, so core still stores global_speed and pushes it to the
+  # driver, then recompute_tcoolthrs runs.
+  - id: !extend num_speed
+    web_server: { sorting_weight: 8, sorting_group_id: group_sg }
+    set_action:
+      - script.execute: recompute_tcoolthrs
+  # Acceleration is core's last remaining member of group_motion (Speed moved to the
+  # advanced group above). Move it to group_tuning too so core's group_motion is fully
+  # empty and does not render a duplicate "Motion Tuning" header.
+  - id: !extend num_accel
+    web_server: { sorting_weight: 2, sorting_group_id: group_tuning }
   # Product-only: travel distance in centimeters (drives the cover's 0..1 range).
   - platform: template
     name: "Centimeters"
@@ -391,10 +561,15 @@ number:
         - script.execute: recompute_distance
 
 sensor:
+  # SG_RESULT and TSTEP are raw StallGuard tuning data -- meaningless with
+  # StallGuard off -- so move them out of Diagnostics into the StallGuard group,
+  # alongside SGTHRS/TCOOLTHRS and the enable switch.
   - id: !extend sen_sgresult
     name: "SG_RESULT Sensor"
+    web_server: { sorting_weight: 5, sorting_group_id: group_sg }
   - id: !extend sen_tstep
     name: "TSTEP Sensor"
+    web_server: { sorting_weight: 6, sorting_group_id: group_sg }
 
 # --- The curtain cover --------------------------------------------------------
 cover:
@@ -442,18 +617,72 @@ button:
       - if:
           condition: { lambda: 'return id(global_state) == 3;' }
           then:
-            - stepper.stop: driver
-            - stepper.report_position: { id: driver, position: 0 }
-            - stepper.set_target: { id: driver, target: 0 }
-            - globals.set: { id: global_state, value: "0" }
-            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+            # Second press at the closed end: commit home.
+            - script.execute: home_finish
           else:
-            - globals.set: { id: global_state, value: "3" }
-            - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
-            - stepper.report_position: { id: driver, position: 0 }
-            - stepper.set_target: { id: driver, target: -100000 }
+            # First press: start homing (drives closed at ${home_speed}).
+            - script.execute: home_start
+
+# StallGuard is now advanced/experimental, so its controls sit at the very bottom.
+# Core's group_sg (weight 40) can't be re-weighted from here -- package
+# merge duplicates the id rather than overriding it -- so instead we define a NEW
+# group below Diagnostics (60) and reassign every StallGuard entity to it. Core's
+# original group is left with no members and does not render.
+web_server:
+  sorting_groups:
+    # Core puts Motion Tuning at weight 30 (below Schedule at 25). We can't re-weight
+    # a core group from the product layer (the id would be redefined), so define a NEW
+    # group at weight 22 -- directly under Setup (20), above Schedule (25) -- and move
+    # every motion entity to it. Core's group_motion is left empty and does not render.
+    - { id: group_tuning, name: "Motion Tuning", sorting_weight: 22 }
+    - { id: group_sg, name: "StallGuard (experimental)", sorting_weight: 70 }
+
+switch:
+  # Master opt-in for StallGuard. Default OFF: the shipped product homes manually
+  # (Start-Stop button) and never reacts to a chip stall. Turn this on only to
+  # use sensorless auto-homing / obstruction detection, which needs SGTHRS tuned
+  # to the installed load (see the StallGuard group). Mirrors Glasscalibur's
+  # stallguard_enabled. on_stall no-ops while this is off.
+  - platform: template
+    name: "StallGuard Enabled"
+    id: sg_enabled
+    icon: "mdi:shield-search"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 1, sorting_group_id: group_sg }
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
 
 text_sensor:
+  # Surfaces StallGuard's arming state, which is otherwise invisible. The
+  # failure it exists to catch: if TCOOLTHRS is below the cruise TSTEP for the
+  # configured Speed, StallGuard NEVER reports, homing never completes, and
+  # nothing anywhere says so. Diagnosed here from the configured Speed, so a
+  # misconfiguration is visible while the curtain is standing still rather than
+  # only discovered when homing silently fails.
+  #
+  # "Below threshold" during acceleration is normal and expected -- StallGuard
+  # is deliberately disarmed at low velocity, which is what TCOOLTHRS is for.
+  # A reading that never leaves it once at speed is the real fault.
+  - platform: template
+    name: "StallGuard"
+    id: sg_status
+    icon: "mdi:shield-search"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 2, sorting_group_id: group_sg }
+    update_interval: 1s
+    lambda: |-
+      if (!id(sg_enabled).state) return {"Disabled"};
+      const uint32_t tc = id(driver)->read_register(TCOOLTHRS);
+      // Predicted cruise TSTEP for the configured Speed (measured constant).
+      const uint32_t sp = id(global_speed) > 0 ? (uint32_t) id(global_speed) : 1;
+      const uint32_t cruise = 374000UL / sp;
+      if (cruise > tc)
+        return {"Never arms at this Speed"};
+      const uint32_t ts = id(driver)->read_register(TSTEP);
+      if (ts >= 0xFFFFF) return {"Ready (stopped)"};
+      if (ts <= tc)      return {"Armed"};
+      return {"Below threshold"};
+
   - platform: template
     name: "State"
     id: cover_state
