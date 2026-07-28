@@ -54,7 +54,7 @@ The current revision is **v1.1**. Open the print plate at [hardware/plastics/v1.
 
 ## How to install it
 
-Either use command strips (which is recommended) or 4 small nails (for drywall only), or two screws/anchors. It's very easy to install.
+Either use the included foam mounting squares (recommended), small nails (for drywall only), or two screws/anchors. It's very easy to install.
 
 
 ## Sending commands
