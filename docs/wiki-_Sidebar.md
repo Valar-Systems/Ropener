@@ -6,17 +6,16 @@
 ---
 
 **Getting Started**
-- [🏠 Home](Home)
+- [Home](Home)
 
 **Build & Install**
-- [🔧 Build Guide](Build-Guide)
-- [🪟 Installation Guide](Installation-Guide)
-- [📋 Bill of Materials](https://github.com/Valar-Systems/Ropener/blob/main/docs/BOM-V2.0.md)
+- [Build Guide](Build-Guide)
+- [Installation Guide](Installation-Guide)
+- [Bill of Materials](https://github.com/Valar-Systems/Ropener/blob/main/docs/BOM-V2.0.md)
 
 **Firmware & Use**
-- [⚙️ Firmware Guide](Firmware-Guide)
-- [⚙️ ESPHome Guide](ESPHome-guide)
-- [📖 User Guide](User-Guide)
+- [Firmware Guide](Firmware-Guide)
+- [User Guide](User-Guide)
 
 ---
 
