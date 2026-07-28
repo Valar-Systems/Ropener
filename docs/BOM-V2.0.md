@@ -23,7 +23,7 @@
 | Part | Qty | Description |
 | :--- | :---: | :--- |
 | PTFE tubing, 3 mm ID × 5 mm OD (pre-cut) | 6 | 2 × 10 mm, 2 × 40 mm, 2 × 70 mm — [buy](https://valarsystems.com/products/ptfe-tube). |
-| M3 × 10 mm screw, self-tapping | 11 | [Thread-forming screw](https://valarsystems.com/products/m3-x-10mm-thread-forming-screw). |
+| M3 × 10 mm screw, self-tapping | 14 | [Thread-forming screw](https://valarsystems.com/products/m3-x-10mm-thread-forming-screw). |
 | M3 square nut | 1 | [Curtain-pulley nut](https://valarsystems.com/products/m3-square-nut). |
 | Zip tie | 1 | Small, 2–3 mm wide — [buy](https://valarsystems.com/products/zip-tie). |
 | V623ZZ pulley | 1 | 3 × 12 × 4 mm — [V-groove pulley](https://valarsystems.com/products/v-groove-pulley). |
@@ -34,7 +34,6 @@
 | Part | Qty | Description |
 | :--- | :---: | :--- |
 | Foam mounting squares (set of 5) | 5 | 1" square double-sided foam. Wipe the surface clean and dry, then press firmly — [buy](https://valarsystems.com/products/foam-mounting-squares). |
-| #17 × 1 1/4" wire nail | 3 | Use to nail to drywall only — [buy](https://valarsystems.com/products/wire-nail-17-x-1-1-4-in). |
 
 ## Assembly Tools Required
 

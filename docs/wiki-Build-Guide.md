@@ -98,7 +98,7 @@ Everything the build needs is below. For the full, maintained list see the [Bill
 | Bearing (633ZZ, 3 × 13 × 5 mm) | 2 |
 | MK8 drive gear | 1 |
 | Zip tie | 4 |
-| M3 × 10 mm thread-forming screw | 23 |
+| M3 × 10 mm thread-forming screw | 22 |
 
 ---
 
