@@ -41,7 +41,7 @@ If you've never used ESPHome, the official [Getting Started guide](https://espho
 
 ## 2. How the Ropener firmware is built
 
-At a high level, the curtain hardware is an **ESP32** microcontroller driving a **TMC2209** silent stepper driver, which turns a **NEMA-17 motor** and an **MK7 gear** that pulls the poly rope. The YAML wires all of that together. The main building blocks in the file:
+At a high level, the curtain hardware is an **ESP32** microcontroller driving a **TMC2209** silent stepper driver, which turns a **NEMA-17 motor** and an **MK8 gear** that pulls the poly rope. The YAML wires all of that together. The main building blocks in the file:
 
 | YAML section | What it does |
 | --- | --- |
