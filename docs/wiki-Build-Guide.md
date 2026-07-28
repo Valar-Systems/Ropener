@@ -87,7 +87,7 @@ Everything the build needs is below. For the full, maintained list see the [Bill
 | NEMA 17 stepper motor | 1 |
 | 24 V 1.5 A power adapter | 1 |
 | Cable extension | as needed |
-| 3M Command Strips | 4 |
+| Foam mounting squares (set of 5) | 5 |
 | 1.6 mm rope | 30 ft |
 | PTFE tubing (pre-cut: 2 × 10 mm, 2 × 40 mm, 2 × 70 mm) | 6 |
 | M3 square nut | 4 |
@@ -133,20 +133,20 @@ This device works on the following curtain types.
 <!-- 📷 media/build-guide/08-drive-pulley.png — drive pulley on motor shaft -->
 4. **Attach the drive pulley.** Fit it onto the motor shaft. You'll fine-tune its position later.
 
-<!-- 📷 media/build-guide/09-arms.png — arm with M3×12mm button head (red), one 633ZZ bearing (green), M3 square nut (orange) -->
-5. **Assemble the two arms.** Each arm uses an **M3 × 12 mm button-head screw**, **one 633ZZ bearing (3 × 13 × 5 mm)**, and an **M3 square nut**. Build both arms the same way.
+<!-- 📷 media/build-guide/09-arms.png — arm with M3×15mm button head (red), one 633ZZ bearing (green), M3 square nut (orange) -->
+5. **Assemble the two arms.** Each arm uses an **M3 × 15 mm button-head screw**, **one 633ZZ bearing (3 × 13 × 5 mm)**, and an **M3 square nut**. **On one of the two arms, also seat a third M3 square nut into its pocket now** — that pocket is inaccessible once the arms are mated, and the **M3 × 35 mm clamp screw** in Step 8 threads into this nut to pull the arm pair against the drive pulley. Build both arms the same way.
 
-<!-- 📷 media/build-guide/10-arms-connector.png — plastic connector + both arms on motor, 2× M3×30mm screws -->
-6. **Attach the arms to the motor.** Fasten the plastic connector and **both arms** to the motor using **two M3 × 30 mm screws**.
+<!-- 📷 media/build-guide/10-arms-connector.png — plastic connector + both arms on motor, 2× M3×35mm screws -->
+6. **Attach the arms to the motor.** Fasten the plastic connector and **both arms** to the motor using **two M3 × 35 mm button-head screws** (two of the three arm assembly screws).
 
 <!-- 📷 media/build-guide/11-pulley-alignment.png — drive pulley aligned with the two idler pulleys -->
 7. **Check alignment.** Make sure the **drive pulley is perfectly aligned** with the two idler pulleys.
 
-<!-- 📷 media/build-guide/12-arms-bottom.png — M3×30mm screw joining bottom of both arms (do not tighten) -->
-8. **Join the bottom of the arms.** Use an **M3 × 30 mm screw** to connect the bottom of both arms. **Do not tighten yet** — you'll do this after the rope is connected to the pulley.
+<!-- 📷 media/build-guide/12-arms-bottom.png — M3×35mm screw joining bottom of both arms (do not tighten) -->
+8. **Join the bottom of the arms.** Use the third **M3 × 35 mm screw** to connect the bottom of both arms — it threads into the square nut you seated in Step 5 and clamps the arm pair against the drive pulley. **Do not tighten yet** — you'll do this after the rope is connected to the pulley.
 
-<!-- 📷 media/build-guide/13-command-strips.png — 3M command strips applied to the marked area on the back -->
-9. **Apply the mounting strips.** Attach the **3M Command Strips** to the marked area on the back of the body.
+<!-- 📷 media/build-guide/13-mounting-squares.png — foam mounting squares applied to the marked area on the back -->
+9. **Apply the mounting squares.** Wipe the marked area on the back of the body clean and dry, then press the **five 1" foam mounting squares** firmly into place.
 
 ---
 
