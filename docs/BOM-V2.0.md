@@ -12,8 +12,8 @@
 | Extension cable | 1 | [Straight barrel-plug extension](https://valarsystems.com/products/barrel-plug-extension-cable). |
 | M3 × 10 mm screw, self-tapping | 8 | [Thread-forming screw](https://valarsystems.com/products/m3-x-10mm-thread-forming-screw). |
 | M3 × 35 mm screw, button head | 3 | [Arm assembly screws](https://valarsystems.com/products/m3-x-35mm-button-head-screw). |
-| M3 square nut | 3 | [Square nut](https://valarsystems.com/products/m3-square-nut). |
-| M3 × 15 mm screw, button head | 2 | [Arm screw, one per arm](https://valarsystems.com/products/m3-x-15mm-button-head-screw). |
+| M3 square nut | 3 | [Square nut](https://valarsystems.com/products/m3-square-nut) — arm nuts (2) + clamp nut (1). |
+| M3 × 15 mm screw, button head | 3 | [Arm screws (2) + curtain-pulley screw (1)](https://valarsystems.com/products/m3-x-15mm-button-head-screw). |
 | M3 × 10 mm screw, flat head | 2 | [Flat-head screw](https://valarsystems.com/products/m3-x-10mm-flat-head-screw). |
 | Gear | 1 | MK8, 5 mm bore / 9 mm OD — [buy](https://valarsystems.com/products/ropener-drive-gear). |
 | Bearing | 2 | 633ZZ, 3 mm × 13 mm × 5 mm — [buy](https://valarsystems.com/products/633zz-bearing). |
@@ -24,8 +24,7 @@
 | :--- | :---: | :--- |
 | PTFE tubing, 3 mm ID × 5 mm OD (pre-cut) | 6 | 2 × 10 mm, 2 × 40 mm, 2 × 70 mm — [buy](https://valarsystems.com/products/ptfe-tube). |
 | M3 × 10 mm screw, self-tapping | 11 | [Thread-forming screw](https://valarsystems.com/products/m3-x-10mm-thread-forming-screw). |
-| M3 square nut | 1 | [Square nut](https://valarsystems.com/products/m3-square-nut). |
-| M3 × 12 mm screw, flat head | 1 | [Flat-head screw](https://valarsystems.com/products/m3-x-12mm-flat-head-screw). |
+| M3 square nut | 1 | [Curtain-pulley nut](https://valarsystems.com/products/m3-square-nut). |
 | Zip tie | 1 | Small, 2–3 mm wide — [buy](https://valarsystems.com/products/zip-tie). |
 | V623ZZ pulley | 1 | 3 × 12 × 4 mm — [V-groove pulley](https://valarsystems.com/products/v-groove-pulley). |
 | Rope | 1 | 1.6 mm diameter — [buy](https://valarsystems.com/products/rope). |

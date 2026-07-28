@@ -167,8 +167,8 @@ The **PTFE tubes come pre-cut** — no cutting needed. You'll have **two of each
 <!-- 📷 media/build-guide/16-long-tubes.png — 2 long tubes placed, top plastic attached with 2 screws -->
 1. **Long tubes.** Place the **two long tubes**, then attach the top plastic using **two M3 thread-forming screws**.
 
-<!-- 📷 media/build-guide/17-pulley-end.png — pulley end: short tubes, V-groove pulley with M3×12mm flathead, square nut, M3 thread-forming -->
-2. **Pulley end.** Fit the **short tubes**, then the **V-groove pulley** held by an **M3 × 12 mm flat-head screw**, secured with a **square nut** and an **M3 thread-forming screw**.
+<!-- 📷 media/build-guide/17-pulley-end.png — pulley end: short tubes, V-groove pulley with M3×15mm button head, square nut, M3 thread-forming -->
+2. **Pulley end.** Fit the **short tubes**, then the **V-groove pulley** held by an **M3 × 15 mm button-head screw**, secured with an **M3 square nut** and an **M3 thread-forming screw**.
 
 <!-- 📷 media/build-guide/18-carriages-medium.png — 1 medium tube per carriage, top plastic over tubes, 4 side screws -->
 3. **Carriages.** Place **one medium tube** into each carriage, set the top plastic over the tubes, and drive **four M3 thread-forming screws** into the sides.
