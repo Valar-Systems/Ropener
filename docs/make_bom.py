@@ -207,8 +207,8 @@ doc.add_paragraph()
 intro = doc.add_paragraph()
 intro.add_run(
     "Everything needed to build one Ropener. Quantities are per unit. Links in "
-    "the Description column point to the custom PCB and suggested suppliers; "
-    "equivalent parts may be substituted where noted."
+    "the Description column point to the Valar Systems store; equivalent parts "
+    "may be substituted where noted."
 )
 
 # ---------------------------------------------------------------------------
