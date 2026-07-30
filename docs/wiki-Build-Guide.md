@@ -6,12 +6,12 @@
 
 Assembling a Ropener takes about **20 minutes** with three common hand tools — no soldering. It comes together in three stages: the **motor body**, the **curtain-rail carriages**, and **attaching it to your curtains**. Follow whichever guide below suits you — they all cover the same build.
 
-> 🆕 **New in v1.1** — This guide covers the current **v1.1** hardware:
+> 🆕 **Current hardware — v1.2.1.** Notable changes since v1.0:
 > - **Stronger pull (11 lb → 15 lb)** from a smaller-diameter **MK8** drive gear (replaces the MK7).
 > - **One larger 633ZZ bearing (3 × 13 × 5 mm) per arm** instead of two small bearings.
 > - **Pre-cut PTFE tubes** (10 / 40 / 70 mm) — no measuring or razor-cutting.
 >
-> Print from [`hardware/plastics/v1.1`](https://github.com/Valar-Systems/Ropener/tree/main/hardware/plastics/v1.1). The v1.0 files remain in the repo for anyone who already built one.
+> Print from [`hardware/plastics/v1.2.1`](https://github.com/Valar-Systems/Ropener/tree/main/hardware/plastics/v1.2.1). Earlier revisions remain in the repo for anyone who already built one.
 
 ## How to build
 
@@ -87,7 +87,7 @@ Everything the build needs is below. For the full, maintained list see the [Bill
 | NEMA 17 stepper motor | 1 |
 | 24 V 1.5 A power adapter | 1 |
 | Cable extension | as needed |
-| Foam mounting squares (set of 5) | 5 |
+| Foam mounting square, 1" | 5 |
 | 1.6 mm rope | 30 ft |
 | PTFE tubing (pre-cut: 2 × 10 mm, 2 × 40 mm, 2 × 70 mm) | 6 |
 | M3 square nut | 4 |
@@ -153,6 +153,8 @@ This device works on the following curtain types.
 ## Curtain rail assembly
 
 > **Overview.** Along the rod, from one end to the other, you'll have: the **pulley**, a **carriage with one screw on top**, a **carriage with two screws on top**, and the **motor-side** anchor.
+
+> **How many carriages?** The standard build uses **two** (one single-screw, one double-screw). How carriage count should scale as the number of curtain panels grows is not documented yet — **TODO**.
 
 <!-- 📷 media/build-guide/15-setup-overview.png — rail layout: pulley, 1-screw carriage, 2-screw carriage, motor side -->
 

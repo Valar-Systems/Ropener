@@ -1,6 +1,6 @@
 # BOM V2.0
 
-> Reflects the **v1.1** hardware. What changed from v1.0: a smaller-diameter **MK8** drive gear (pull strength 11 lb → 15 lb), **one larger 633ZZ bearing per arm** instead of two small bearings, and **pre-cut PTFE tubes** (no razor-cutting). Quantities are per unit. Every purchasable part links to the [Valar Systems store](https://valarsystems.com).
+> Reflects the current **v1.2.1** hardware. Notable changes since v1.0: a smaller-diameter **MK8** drive gear (pull strength 11 lb → 15 lb), **one larger 633ZZ bearing per arm** instead of two small bearings, **pre-cut PTFE tubes** (no razor-cutting), **foam mounting squares** in place of adhesive command strips, and a **24 V 1.5 A** power adapter. Quantities are per unit. Every purchasable part links to the [Valar Systems store](https://valarsystems.com).
 
 ## Body Assembly
 
@@ -25,15 +25,17 @@
 | PTFE tubing, 3 mm ID × 5 mm OD (pre-cut) | 6 | 2 × 10 mm, 2 × 40 mm, 2 × 70 mm — [buy](https://valarsystems.com/products/ptfe-tube). |
 | M3 × 10 mm screw, self-tapping | 14 | [Thread-forming screw](https://valarsystems.com/products/m3-x-10mm-thread-forming-screw). |
 | M3 square nut | 1 | [Curtain-pulley nut](https://valarsystems.com/products/m3-square-nut). |
-| Zip tie | 1 | Small, 2–3 mm wide — [buy](https://valarsystems.com/products/zip-tie). |
+| Zip tie | 4 | Small, 2–3 mm wide. One for the motor-side rope elbow, one for the far-side pulley, and two for attaching carriages to ring curtains (one per carriage) — [buy](https://valarsystems.com/products/zip-tie). |
 | V623ZZ pulley | 1 | 3 × 12 × 4 mm — [V-groove pulley](https://valarsystems.com/products/v-groove-pulley). |
 | Rope | 1 | 1.6 mm diameter — [buy](https://valarsystems.com/products/rope). |
+
+> **Carriages:** the standard build uses **two** carriages (one with a single top screw, one with two). How many carriages a multi-panel curtain needs is not documented yet — **TODO**.
 
 ### Mounting Hardware
 
 | Part | Qty | Description |
 | :--- | :---: | :--- |
-| Foam mounting squares (set of 5) | 5 | 1" square double-sided foam. Wipe the surface clean and dry, then press firmly — [buy](https://valarsystems.com/products/foam-mounting-squares). |
+| Foam mounting square, 1" | 5 | Double-sided; **five squares per unit**. Wipe the surface clean and dry, then press firmly — [buy](https://valarsystems.com/products/foam-mounting-squares). |
 
 ## Assembly Tools Required
 
