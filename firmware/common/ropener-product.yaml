@@ -77,6 +77,11 @@ globals:
   - { id: b2_consumed,    type: bool,     restore_value: no, initial_value: 'false' }
   - { id: b1_tap_count,   type: int,      restore_value: no, initial_value: '0' }
   - { id: b1_last_tap_ms, type: uint32_t, restore_value: no, initial_value: '0' }
+  # Button 2 gets its own tap counter too: with "Swap Buttons" ON, Button 2 is the
+  # close button, so it -- not Button 1 -- carries the 7-tap homing gesture. Only
+  # whichever button is currently the close button ever increments its counter.
+  - { id: b2_tap_count,   type: int,      restore_value: no, initial_value: '0' }
+  - { id: b2_last_tap_ms, type: uint32_t, restore_value: no, initial_value: '0' }
 
 # --- Stall handling (homing) ------------------------------------------------
 # The Ropener homes sensorlessly: drive at the closed end until StallGuard fires,
@@ -225,6 +230,10 @@ script:
       - logger.log: "Home position set to 0"
 
   # Hold-to-run engage (armed on press, fired after hold_run_ms).
+  # Hold-to-run for each button. The MOTION depends on the button's current role
+  # (set by the "Swap Buttons" switch): the close button drives close, the open
+  # button drives open. Button 1 is the close button when swap is OFF; Button 2 is
+  # the close button when swap is ON.
   - id: b1_hold_check
     mode: restart
     then:
@@ -235,22 +244,36 @@ script:
           then:
             - globals.set: { id: b1_hold_active, value: "true" }
             - globals.set: { id: b1_consumed, value: "true" }
-            - cover.close: ropener_cover
-            - logger.log: "Button 1 held: closing while held"
+            - if:
+                condition: { lambda: 'return !id(btn_swap).state;' }
+                then:
+                  - cover.close: ropener_cover
+                  - logger.log: "Button 1 held: closing while held"
+                else:
+                  - cover.open: ropener_cover
+                  - logger.log: "Button 1 held: opening while held"
   - id: b2_hold_check
     mode: restart
     then:
       - delay: ${hold_run_ms}ms
       - if:
           condition:
-            lambda: 'return id(b2_down) && !id(b1_down) && id(global_state) == 0;'
+            lambda: 'return id(b2_down) && !id(b1_down) && id(global_state) == 0 && id(b2_tap_count) < 7;'
           then:
             - globals.set: { id: b2_hold_active, value: "true" }
             - globals.set: { id: b2_consumed, value: "true" }
-            - cover.open: ropener_cover
-            - logger.log: "Button 2 held: opening while held"
+            - if:
+                condition: { lambda: 'return id(btn_swap).state;' }
+                then:
+                  - cover.close: ropener_cover
+                  - logger.log: "Button 2 held: closing while held"
+                else:
+                  - cover.open: ropener_cover
+                  - logger.log: "Button 2 held: opening while held"
 
-  # Single-tap close for Button 1 (deferred so a 7-tap burst can chain).
+  # Deferred single-tap CLOSE, one per button. Only the current close button ever
+  # schedules its commit (the open button opens immediately on release); the delay
+  # lets a 7-tap homing burst chain without the first tap committing a close.
   - id: b1_tap_commit
     mode: restart
     then:
@@ -262,6 +285,17 @@ script:
             - cover.close: ropener_cover
             - logger.log: "Button 1 tap: closing"
       - globals.set: { id: b1_tap_count, value: "0" }
+  - id: b2_tap_commit
+    mode: restart
+    then:
+      - delay: ${tap_window_ms}ms
+      - if:
+          condition:
+            lambda: 'return id(global_state) == 0 && id(b2_tap_count) < 7;'
+          then:
+            - cover.close: ropener_cover
+            - logger.log: "Button 2 tap: closing"
+      - globals.set: { id: b2_tap_count, value: "0" }
 
   # Two-button "set home" combo.
   - id: combo_home
@@ -325,6 +359,7 @@ binary_sensor:
                         - script.stop: b1_hold_check
                         - script.stop: b2_hold_check
                         - script.stop: b1_tap_commit
+                        - script.stop: b2_tap_commit
                         - cover.stop: ropener_cover
                         - globals.set: { id: b1_hold_active, value: "false" }
                         - globals.set: { id: b2_hold_active, value: "false" }
@@ -332,22 +367,32 @@ binary_sensor:
                         - globals.set: { id: b2_consumed, value: "true" }
                         - script.execute: combo_home
                       else:
-                        - script.stop: b1_tap_commit
-                        - lambda: |-
-                            uint32_t now = millis();
-                            if (now - id(b1_last_tap_ms) > ${tap_window_ms}) id(b1_tap_count) = 0;
-                            id(b1_tap_count) += 1;
-                            id(b1_last_tap_ms) = now;
-                        - globals.set: { id: b1_consumed, value: "false" }
+                        # Idle, single button. Behaviour depends on Button 1's role.
                         - if:
-                            condition: { lambda: 'return id(b1_tap_count) >= 7;' }
+                            condition: { lambda: 'return !id(btn_swap).state;' }
                             then:
-                              - script.stop: b1_hold_check
-                              - globals.set: { id: b1_tap_count, value: "0" }
-                              - globals.set: { id: b1_consumed, value: "true" }
-                              - script.execute: home_start
-                              - logger.log: "Button 1 x7: starting homing"
+                              # CLOSE button: count taps (7 -> homing), defer the close.
+                              - script.stop: b1_tap_commit
+                              - lambda: |-
+                                  uint32_t now = millis();
+                                  if (now - id(b1_last_tap_ms) > ${tap_window_ms}) id(b1_tap_count) = 0;
+                                  id(b1_tap_count) += 1;
+                                  id(b1_last_tap_ms) = now;
+                              - globals.set: { id: b1_consumed, value: "false" }
+                              - if:
+                                  condition: { lambda: 'return id(b1_tap_count) >= 7;' }
+                                  then:
+                                    - script.stop: b1_hold_check
+                                    - globals.set: { id: b1_tap_count, value: "0" }
+                                    - globals.set: { id: b1_consumed, value: "true" }
+                                    - script.execute: home_start
+                                    - logger.log: "Button 1 x7: starting homing"
+                                  else:
+                                    - script.execute: b1_hold_check
                             else:
+                              # OPEN button: no homing gesture; open immediately on release.
+                              - globals.set: { id: b1_tap_count, value: "0" }
+                              - globals.set: { id: b1_consumed, value: "false" }
                               - script.execute: b1_hold_check
     on_release:
       - globals.set: { id: b1_down, value: "false" }
@@ -366,7 +411,15 @@ binary_sensor:
                 then:
                   - globals.set: { id: b1_consumed, value: "false" }
                 else:
-                  - script.execute: b1_tap_commit
+                  # Tap: the close button defers (allows 7-tap chaining); the open
+                  # button opens immediately.
+                  - if:
+                      condition: { lambda: 'return !id(btn_swap).state;' }
+                      then:
+                        - script.execute: b1_tap_commit
+                      else:
+                        - cover.open: ropener_cover
+                        - logger.log: "Button 1 tap: opening"
 
   - id: !extend btn2
     on_press:
@@ -375,16 +428,20 @@ binary_sensor:
           condition: { lambda: 'return id(global_state) == 3;' }
           then:
             - script.stop: b2_hold_check
+            - script.stop: b2_tap_commit
             - script.execute: set_home_zero
             - globals.set: { id: b2_consumed, value: "true" }
+            - globals.set: { id: b2_tap_count, value: "0" }
             - logger.log: "Homing cancelled (Button 2)"
           else:
             - if:
                 condition: { lambda: 'return id(global_state) == 1 || id(global_state) == 2;' }
                 then:
                   - script.stop: b2_hold_check
+                  - script.stop: b2_tap_commit
                   - cover.stop: ropener_cover
                   - globals.set: { id: b2_consumed, value: "true" }
+                  - globals.set: { id: b2_tap_count, value: "0" }
                 else:
                   - if:
                       condition: { lambda: 'return id(b1_down);' }
@@ -392,16 +449,43 @@ binary_sensor:
                         - script.stop: b1_hold_check
                         - script.stop: b2_hold_check
                         - script.stop: b1_tap_commit
+                        - script.stop: b2_tap_commit
                         - cover.stop: ropener_cover
                         - globals.set: { id: b1_hold_active, value: "false" }
                         - globals.set: { id: b2_hold_active, value: "false" }
                         - globals.set: { id: b1_consumed, value: "true" }
                         - globals.set: { id: b2_consumed, value: "true" }
                         - globals.set: { id: b1_tap_count, value: "0" }
+                        - globals.set: { id: b2_tap_count, value: "0" }
                         - script.execute: combo_home
                       else:
-                        - globals.set: { id: b2_consumed, value: "false" }
-                        - script.execute: b2_hold_check
+                        # Idle, single button. Behaviour depends on Button 2's role.
+                        - if:
+                            condition: { lambda: 'return id(btn_swap).state;' }
+                            then:
+                              # CLOSE button (swap ON): count taps (7 -> homing), defer close.
+                              - script.stop: b2_tap_commit
+                              - lambda: |-
+                                  uint32_t now = millis();
+                                  if (now - id(b2_last_tap_ms) > ${tap_window_ms}) id(b2_tap_count) = 0;
+                                  id(b2_tap_count) += 1;
+                                  id(b2_last_tap_ms) = now;
+                              - globals.set: { id: b2_consumed, value: "false" }
+                              - if:
+                                  condition: { lambda: 'return id(b2_tap_count) >= 7;' }
+                                  then:
+                                    - script.stop: b2_hold_check
+                                    - globals.set: { id: b2_tap_count, value: "0" }
+                                    - globals.set: { id: b2_consumed, value: "true" }
+                                    - script.execute: home_start
+                                    - logger.log: "Button 2 x7: starting homing"
+                                  else:
+                                    - script.execute: b2_hold_check
+                            else:
+                              # OPEN button: no homing gesture; open immediately on release.
+                              - globals.set: { id: b2_tap_count, value: "0" }
+                              - globals.set: { id: b2_consumed, value: "false" }
+                              - script.execute: b2_hold_check
     on_release:
       - globals.set: { id: b2_down, value: "false" }
       - script.stop: b2_hold_check
@@ -419,8 +503,15 @@ binary_sensor:
                 then:
                   - globals.set: { id: b2_consumed, value: "false" }
                 else:
-                  - cover.open: ropener_cover
-                  - logger.log: "Button 2 tap: opening"
+                  # Tap: the close button defers (allows 7-tap chaining); the open
+                  # button opens immediately.
+                  - if:
+                      condition: { lambda: 'return id(btn_swap).state;' }
+                      then:
+                        - script.execute: b2_tap_commit
+                      else:
+                        - cover.open: ropener_cover
+                        - logger.log: "Button 2 tap: opening"
 
   # Rename core's "Button 3 (Wi-Fi reset)" to Ropener's "WiFi Reset" and attach
   # the hold-to-erase-credentials action.
@@ -649,6 +740,24 @@ switch:
     icon: "mdi:shield-search"
     entity_category: CONFIG
     web_server: { sorting_weight: 1, sorting_group_id: group_sg }
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  # Swap the two physical buttons' open/close roles. Default OFF = Button 1 closes,
+  # Button 2 opens (the shipped layout). ON = Button 1 opens, Button 2 closes -- for
+  # a mirror-image install (e.g. the pull-rope on the left instead of the right)
+  # where the unit sits flipped and the buttons otherwise feel reversed. The 7-tap
+  # homing gesture and the deferred single-tap always follow the CLOSE button, so
+  # homing lives on whichever button closes. This only remaps the on-device buttons;
+  # the web UI, Home Assistant, and the schedule open/close are unaffected. (Motor
+  # Direction, a separate setting, reverses the motor itself -- a left-side install
+  # usually wants both.)
+  - platform: template
+    name: "Swap Buttons"
+    id: btn_swap
+    icon: "mdi:swap-horizontal"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 3, sorting_group_id: group_setup }
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
 
