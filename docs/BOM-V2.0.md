@@ -43,4 +43,4 @@
 | :--- | :---: | :--- |
 | Screwdriver, Phillips No. 1 | 1 | [Phillips No. 1](https://valarsystems.com/products/phillips-no-1-screw-driver). |
 | Hex driver, 2 mm | 1 | For the M3 button-head screws — [2 mm hex driver](https://valarsystems.com/products/allen-wrench-2mm). |
-| Hex driver, 1.5 mm | 1 | For the MK8 drive-gear set screw. |
+| Hex driver, 1.5 mm | 1 | For the MK8 drive-gear set screw — [1.5 mm hex driver](https://valarsystems.com/products/allen-wrench-1-5mm). |
