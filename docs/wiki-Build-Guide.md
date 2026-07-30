@@ -130,8 +130,8 @@ This device works on the following curtain types.
 <!-- 📷 media/build-guide/07-wallplate-buttons.png — buttons in holes, wall plate attached with 4 screws -->
 3. **Fit the buttons and close the body.** Place the buttons into their holes, then attach the wall plate to the housing using **four M3 thread-forming screws**.
 
-<!-- 📷 media/build-guide/08-drive-pulley.png — drive pulley on motor shaft -->
-4. **Attach the drive pulley.** Fit it onto the motor shaft. You'll fine-tune its position later.
+<!-- 📷 media/build-guide/08-drive-pulley.png — MK8 drive gear on motor shaft, set screw tightened with 1.5 mm hex -->
+4. **Attach the drive gear.** Fit the **MK8 drive gear** onto the motor shaft and secure it with its **set screw, using the 1.5 mm hex driver**. Snug it just enough to hold position — you'll fine-tune the position later before fully tightening.
 
 <!-- 📷 media/build-guide/09-arms.png — arm with M3×15mm button head (red), one 633ZZ bearing (green), M3 square nut (orange) -->
 5. **Assemble the two arms.** Each arm uses an **M3 × 15 mm button-head screw**, **one 633ZZ bearing (3 × 13 × 5 mm)**, and an **M3 square nut**. **On one of the two arms, also seat a third M3 square nut into its pocket now** — that pocket is inaccessible once the arms are mated, and the **M3 × 35 mm clamp screw** in Step 8 threads into this nut to pull the arm pair against the drive pulley. Build both arms the same way.
@@ -173,7 +173,9 @@ The **PTFE tubes come pre-cut** — no cutting needed. You'll have **two of each
 2. **Pulley end.** Fit the **short tubes**, then the **V-groove pulley** held by an **M3 × 15 mm button-head screw**, secured with an **M3 square nut** and an **M3 thread-forming screw**.
 
 <!-- 📷 media/build-guide/18-carriages-medium.png — 1 medium tube per carriage, top plastic over tubes, 4 side screws -->
-3. **Carriages.** Place **one medium tube** into each carriage, set the top plastic over the tubes, and drive **four M3 thread-forming screws** into the sides.
+3. **Carriages — build two.** For **each** carriage, place **one medium tube** in, set the top plastic over the tubes, and drive **four M3 thread-forming screws into the sides** (four per carriage, **eight total**). Then add the **top screws that tell the two carriages apart — one on the first carriage, two on the second** (**three total**); these become the rope clamp/tension screws later (see [Rope routing and tensioning](#rope-routing-and-tensioning)).
+
+> **Curtain-side screw count:** 2 (long tubes) + 1 (pulley end) + 8 (carriage sides) + 3 (carriage tops) = **14 M3 × 10 thread-forming screws**. With the **8** in the motor body, a full build uses **22** — matching the [Bill of Materials](https://github.com/Valar-Systems/Ropener/blob/main/docs/BOM-V2.0.md).
 
 ---
 
