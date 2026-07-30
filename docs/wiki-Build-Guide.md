@@ -173,7 +173,9 @@ The **PTFE tubes come pre-cut** — no cutting needed. You'll have **two of each
 2. **Pulley end.** Fit the **short tubes**, then the **V-groove pulley** held by an **M3 × 15 mm button-head screw**, secured with an **M3 square nut** and an **M3 thread-forming screw**.
 
 <!-- 📷 media/build-guide/18-carriages-medium.png — 1 medium tube per carriage, top plastic over tubes, 4 side screws -->
-3. **Carriages.** Place **one medium tube** into each carriage, set the top plastic over the tubes, and drive **four M3 thread-forming screws** into the sides.
+3. **Carriages — build two.** For **each** carriage, place **one medium tube** in, set the top plastic over the tubes, and drive **four M3 thread-forming screws into the sides** (four per carriage, **eight total**). Then add the **top screws that tell the two carriages apart — one on the first carriage, two on the second** (**three total**); these become the rope clamp/tension screws later (see [Rope routing and tensioning](#rope-routing-and-tensioning)).
+
+> **Curtain-side screw count:** 2 (long tubes) + 1 (pulley end) + 8 (carriage sides) + 3 (carriage tops) = **14 M3 × 10 thread-forming screws**. With the **8** in the motor body, a full build uses **22** — matching the [Bill of Materials](https://github.com/Valar-Systems/Ropener/blob/main/docs/BOM-V2.0.md).
 
 ---
 
