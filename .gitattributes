@@ -1,2 +1,4 @@
+# STEP is text; store as LF no matter what Windows does to the working copy
 *.step text eol=lf
+# 3MF is a zip; never diff or convert
 *.3mf binary
