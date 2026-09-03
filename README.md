@@ -1,4 +1,4 @@
-# Ropener: Automated Curtain Opener
+# The Ropener: Silent drape runners
 
 <img src="/media/main-image-2.jpg" width="70%"/>
 
