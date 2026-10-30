@@ -4,9 +4,9 @@
 Compiling proves the YAML is valid. It does not prove the firmware still DOES
 what it did. This runs two independent diffs:
 
-  ENTITY GATE      -- every user-facing entity (domain, name, category).
-                      Catches dropped/renamed/added entities, which break
-                      Home Assistant entity_ids.
+  ENTITY GATE      -- every user-facing entity (domain, name, category,
+                      object_id). Catches dropped/renamed/added entities,
+                      which break Home Assistant entity_ids.
 
   BEHAVIOUR GATE   -- the automation bodies attached to those entities
                       (on_stall, on_press, script bodies, on_boot, intervals,
@@ -27,6 +27,7 @@ Differences are not automatically failures -- intended changes must be reviewed
 and called out. The gate's job is to make sure nothing changes UNNOTICED.
 """
 import argparse, json, sys, yaml
+from collections import Counter
 
 # --- shared loader -----------------------------------------------------------
 
@@ -60,8 +61,27 @@ def load(path):
 
 # --- entity gate -------------------------------------------------------------
 
+def _object_id_fn():
+    """ESPHome's own object-ID derivation, so the gate shows the ID Home
+    Assistant's entity_id / unique_id are built from -- not a re-implementation
+    that could drift from the real one."""
+    try:
+        from esphome.core.entity_helpers import get_base_entity_object_id
+    except ImportError as exc:
+        sys.exit(f"gate.py: run this with the interpreter ESPHome is installed under ({exc})")
+    return get_base_entity_object_id
+
+
 def entities(cfg):
+    object_id = _object_id_fn()
+    friendly = (cfg.get("esphome") or {}).get("friendly_name")
     rows = set()
+
+    def row(domain, ent):
+        name = ent["name"]
+        return (f"{domain}\t{name}\t{ent.get('entity_category') or ''}"
+                f"\t{object_id(name, friendly)}")
+
     for domain in DOMAINS:
         block = cfg.get(domain)
         if not isinstance(block, list):
@@ -70,11 +90,11 @@ def entities(cfg):
             if not isinstance(item, dict):
                 continue
             if item.get("name") is not None:
-                rows.add(f"{domain}\t{item['name']}\t{item.get('entity_category') or ''}")
+                rows.add(row(domain, item))
             # Multi-entity platforms (wifi_info, ...) nest one sub-entity per key.
             for sub in item.values():
                 if isinstance(sub, dict) and "name" in sub:
-                    rows.add(f"{domain}\t{sub['name']}\t{sub.get('entity_category') or ''}")
+                    rows.add(row(domain, sub))
     return rows
 
 
@@ -104,14 +124,20 @@ def canon(obj):
     return obj
 
 
-def behaviours(cfg):
-    """anchor -> body. Anchors are stable identities (entity name, script id,
-    boot priority) rather than list positions, so a reordered package merge
-    does not look like a change."""
-    out = {}
+def anchored(cfg):
+    """[(anchor, key, body)] in merged-config order. Anchors are stable
+    identities (entity name, script id, boot priority) rather than list
+    positions, so a reordered package merge does not look like a change.
+
+    Two blocks can share an anchor -- Glasscalibur has two `interval: 200ms`
+    blocks. A plain dict let the second silently overwrite the first, which
+    hid the motion-completion poll from the gate entirely. Shared anchors now
+    get an ordinal in merged-config order (`interval:200ms#1`, `#2`); unique
+    anchors are unchanged."""
+    entries = []
 
     def put(anchor, key, body):
-        out[(anchor, key)] = json.dumps(canon(body), sort_keys=True)
+        entries.append((anchor, key, body))
 
     for boot in (cfg.get("esphome") or {}).get("on_boot") or []:
         if isinstance(boot, dict):
@@ -140,7 +166,21 @@ def behaviours(cfg):
                     for k2, v2 in sorted(val.items()):
                         if is_behaviour_key(k2):
                             put(f"{anchor}.{key}", k2, v2)
+
+    total = Counter((a, k) for a, k, _ in entries)
+    seen = Counter()
+    out = []
+    for a, k, body in entries:
+        if total[(a, k)] > 1:
+            seen[(a, k)] += 1
+            a = f"{a}#{seen[(a, k)]}"
+        out.append((a, k, body))
     return out
+
+
+def behaviours(cfg):
+    """(anchor, key) -> canonical body."""
+    return {(a, k): json.dumps(canon(body), sort_keys=True) for a, k, body in anchored(cfg)}
 
 
 # --- reporting ---------------------------------------------------------------
