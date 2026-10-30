@@ -27,8 +27,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      # Pinned to the ESPHome the shipped releases were built with: their
+      # binaries report "ESPHome version 2026.6.5". A bare `pip install esphome`
+      # built every release with whatever was newest that day, so a firmware
+      # nobody changed could change anyway. Bump deliberately (both lines),
+      # with the regression gate, never by accident.
       - name: Install ESPHome
-        run: pip install esphome
+        run: |
+          pip install esphome==2026.6.5
+          v="$(esphome version | tr -d '\r')"
+          echo "$v"
+          [ "$v" = "Version: 2026.6.5" ] || { echo "::error::expected ESPHome 2026.6.5, got: $v"; exit 1; }
 
       # On a tag build, stamp the release version (strip a leading "v") so the
       # on-device "Firmware Version" matches the release the unit is running.
