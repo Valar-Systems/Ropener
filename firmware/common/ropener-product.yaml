@@ -745,8 +745,14 @@ cover:
     has_position: true
     assumed_state: false
     lambda: "return float(id(driver)->current_position) / float(id(global_distance_steps));"
+    # A STOP during homing must also undo homing's set-up: cancel its timeout and
+    # put the user's run speed back (homing drives at ${home_speed}). Without
+    # this, every move after a web/HA STOP mid-homing ran at the homing speed.
+    # Outside homing both are no-ops.
     stop_action:
       - stepper.stop: driver
+      - script.stop: home_timeout
+      - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
       - globals.set: { id: global_state, value: "0" }
       - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
     open_action:
