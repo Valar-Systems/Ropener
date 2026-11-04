@@ -48,6 +48,14 @@ substitutions:
 api:
   reboot_timeout: 0s
 
+# Log-only. Its real job: ESPHome compiles in the OTA listener interface used by
+# the stop-on-update listener (on_boot, priority 900) only when some OTA
+# platform has an on_* trigger. This merges into core's esphome OTA entry.
+ota:
+  - platform: esphome
+    on_begin:
+      - logger.log: "Firmware update starting"
+
 esphome:
   # Capture where the motor actually is at every soft reboot (Restart button,
   # end of a firmware update, any App.reboot). The 200 ms poll only refreshes
@@ -60,6 +68,25 @@ esphome:
       then:
         - lambda: 'id(global_current_position) = id(driver)->current_position;'
   on_boot:
+    # The motor stops when a firmware update begins, however it was started
+    # (ESPHome, the device's own web page, or the "Update Firmware" button).
+    # Every OTA platform reports the start of an update to ESPHome's global OTA
+    # callback; this listener answers OTA_STARTED with the cover's normal STOP,
+    # so stop_action runs exactly as if the user had pressed STOP. Registered
+    # once at boot; the callback object is created on first use.
+    - priority: 900
+      then:
+        - lambda: |-
+            struct StopOnUpdate : public ota::OTAGlobalStateListener {
+              void on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                                       ota::OTAComponent *component) override {
+                if (state != ota::OTA_STARTED) return;
+                ESP_LOGI("update", "Firmware update starting - stopping the motor");
+                id(ropener_cover).make_call().set_command_stop().perform();
+              }
+            };
+            static StopOnUpdate stop_on_update;
+            ota::get_global_ota_callback()->add_global_state_listener(&stop_on_update);
     - priority: 400.0
       then:
         - script.execute: recompute_distance
