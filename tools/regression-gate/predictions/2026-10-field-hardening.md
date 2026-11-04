@@ -537,3 +537,29 @@ F8-P5 (both products, head firmware, no sabotage): the same kind of move (at lea
    update starting ("Firmware update starting - stopping the motor" in the log; Daniel: "did it
    stop?"); after the reboot, position = the stop point ±1 %. This leaves both units on release
    firmware; it runs last on each unit.
+
+## Amendment 7 — Glasscalibur bench session: Daniel's answers and speed (appended; nothing above was edited)
+
+Directions from Daniel himself in the working session, 2026-11-04 (verbatim):
+
+> start now. Ropener is not ready, only glasscalibur. When glasscalibur is done, then i switch to power to ropener. you can load firmware. home assistant is disabled. i can press the bytton. don't worry about old firmware comparison
+
+> try to run it at medium or fast speed to avoid heating issues
+
+Recorded facts: the bench Glasscalibur is a complete actuator (motor, its own travel and
+end switches) on 24 V, not mounted to a window. A diagnostic slow close stopped on the
+closed-end switch; a slow open stopped on its step count with the open-end switch not
+reached or not registering (Daniel cannot see it; he heard no stall and is sure the
+switch works). Motor reached 46.4 °C during that slow open.
+
+Changes for the Glasscalibur session (window 12:25–13:35 PST, Daniel present):
+- Speed: the **Medium** preset (2600 steps/s) instead of Slow, at Daniel's direction, to
+  limit motor heating. Expected B3 back-off duration: ~9–10 s (24,500 steps at 2600),
+  replacing ~20 s. No other prediction depends on the speed.
+- Q2 yes (Daniel presses Button 1 for B2e and B3 step 2). Q3 no: the old-firmware
+  comparison steps (sabotages of B1, B2, B3 step 1) are not run; those checks rest on their
+  predictions and static checks. Q1 and calibration's full open pass (B2 d) are asked when
+  B2 starts.
+- A motor-temperature watch stops motion at 60 °C (Daniel's limit); no motion step starts
+  above 50 °C.
+- Ropener (B6, and its F8-P4 / F8-P5) runs afterwards, when Daniel moves the power to it.
