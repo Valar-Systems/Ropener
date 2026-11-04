@@ -49,6 +49,16 @@ api:
   reboot_timeout: 0s
 
 esphome:
+  # Capture where the motor actually is at every soft reboot (Restart button,
+  # end of a firmware update, any App.reboot). The 200 ms poll only refreshes
+  # the saved position between ticks; this takes the driver's live count at the
+  # moment of shutdown. ESPHome runs on_shutdown hooks in reverse setup-priority
+  # order, so at priority 600 this runs before the globals store their values
+  # (800) and before the preference syncer flushes them to flash (1000).
+  on_shutdown:
+    - priority: 600
+      then:
+        - lambda: 'id(global_current_position) = id(driver)->current_position;'
   on_boot:
     - priority: 400.0
       then:
