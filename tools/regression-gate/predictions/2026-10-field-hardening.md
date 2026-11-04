@@ -205,3 +205,144 @@ exactly one `api_apiserver_id->set_reboot_timeout(900000)` -> red.
 ### Observation
 
 The observation this ruling asked for is recorded outside this repository.
+
+## Amendment 2 — 2026-11-04 rulings, P1.4 re-registered, F8 (appended; nothing above was edited)
+
+### Rulings (verbatim; some lines replaced by pointers)
+
+Source: the reviewer chat, pasted into the working session by Daniel.
+
+Note, ~04:45Z:
+
+> From the Remote edition session's reading of both products: add these to your findings if they aren't there already. No
+> change without a ruling.
+> - Glasscalibur: no obstruction entity. Expose an event or binary sensor; the trip counters lag by up to 30 s.
+> - Glasscalibur: the wiki's API page documents /cover/glasscalibur/open, which ESPHome 2026.6.5 deprecates for removal in
+>   2026.7.0. The current form is /cover/Glasscalibur/open.
+> - Ropener: stall stops aren't exposed. StallGuard is off by default, and the user guide says it doesn't work in the
+>   current firmware.
+
+Ruling, ~05:00Z:
+
+> P2.1: accepted as applied (re-registered, the sabotage red as predicted, the original and the miss kept). The head
+> readings come with item 2's build.
+>
+> P1.4: re-registered as you proposed. The original text and the miss stay on record.
+> - The check: codegen-only (--only-generate) from HEAD's committed files, with the release's fw_version and a
+>   Linux-style build_path: build/<name>, set in a scratch wrapper.
+> - Its control, before any hash is read: the wrapper's resolved config and a plain run's differ in exactly one line,
+>   build_path. Anything else: stop.
+> - Predicted: R3000's and R3100's hashes each occur exactly once in their own shipped .ota.bin. GC's (0x17807f68, once,
+>   at 0x1d2a0) is already observed: report it, don't count it.
+> - The sabotage as before: the dev-build hashes, found 0 times each.
+> - Not the Linux CI route. It would add a workflow to a public repo for one reading, and the wrapper with its control
+>   proves the same thing locally.
+>
+> [One line of this ruling is recorded outside this repository.]
+>
+> New finding, F8 (Glasscalibur): after any reboot mid-travel, the saved position is the travel's start, not where the
+> motor stopped, so the position is wrong from then on. Item 2 removes the 15-minute trigger, but the Restart button, an
+> OTA update or an HA restart command can still reboot it mid-travel.
+> - Record it, with every path that can reboot a moving GC.
+> - Propose a fix, predictions first. For example: keep the position global current during travel, as Ropener does every
+>   0.2 s, so that on_shutdown saves where the motor stopped. [One sentence recorded outside this repository.]
+> - No change without a ruling. Any motion test waits for Daniel to be present.
+>
+> Housekeeping:
+> - Set the uncommitted R1a edit aside (a named stash) while P1.4 and the readings after it run, so no reading can include
+>   it. Restore it when R1a's turn comes.
+> - [One line recorded outside this repository.]
+
+Rulings ~05:15Z and ~05:25Z are recorded outside this repository at their own instruction.
+They approve F8a, F8b and F8c, set the order (P1.4, then item 2, F8a and F8b), and keep
+F8-P4 and F8-P5 as bench checks of the fixed build with Daniel present.
+
+### P1.4 — the miss, on record
+
+Original P1.4 (above, unchanged). Readings, base rebuilt on Windows with the release
+fw_version (every compile exit 0): GC `0x1f0d589d`, R3000 `0x75ad42d1`, R3100 `0x91f0c2a6`
+— 0 occurrences each in the matching shipped .ota.bin. Sabotage (dev hashes
+`0xee63201f`, `0x5ee763ff`, `0x0a59e554`): 0 each, as predicted. Work stopped and was
+reported. Cause, found by diagnosis: the hashed resolved config contains
+`esphome: build_path`, which Windows writes `build\<name>` and the Linux release runner
+`build/<name>`. Diagnostic (not a prediction): GC codegen from HEAD's committed files
+with `build_path: build/glasscalibur` gives `0x17807f68`, found once at `0x1d2a0` in the
+shipped v2.1.0 Glasscalibur.ota.bin.
+
+### P1.4 (re-registered)
+
+Check, per target: export HEAD's committed `firmware/` to a scratch directory.
+Plain run: `esphome -s fw_version <release> config <board file>`. Wrapper: a copy of the
+board file with `build_path: build/<name>` added to its `esphome:` block, same command.
+Control, before any hash is read: the two resolved configs differ in exactly one line,
+`build_path` (`build\<name>` vs `build/<name>`); anything else, stop. Then
+`compile --only-generate` on the wrapper, read `config_hash` from its build_info.json,
+count its 4 little-endian bytes in the shipped .ota.bin.
+Predicted, Ropener (fw_version 2.9.0), for R3000 and R3100 each: control passes
+(exactly one line differs, `build_path`); the hash occurs exactly once in its own
+shipped v2.9.0 .ota.bin (Ropener-VAL3000 / Ropener-VAL3100).
+Sabotage: the dev-build hashes `0x5ee763ff` (R3000) and `0x0a59e554` (R3100) -> 0 each.
+
+### F8 — recorded (from ESPHome 2026.6.5 source)
+
+Glasscalibur saves its position only when it goes idle, so after a reboot during a
+travel it restores the position the travel started from, and the position is wrong
+until the window next touches an end stop. Paths that can reboot a running unit: the
+API reboot timer (removed by item 2); the Restart button (web UI, HA, API); the end of
+any firmware update; holding the Wi-Fi Reset button 3-10 s. Unplanned: power loss,
+crash, watchdog. safe_mode acts only at boot. A soft reboot runs every component's
+`on_shutdown()`: the motor stops, globals are stored and flushed, so the RAM value
+survives. An unplanned reset keeps the last periodic flash sync (60 s). Ropener already
+refreshes its position global every 0.2 s while moving.
+
+### F8a — save where the motor actually stopped (both products)
+
+`esphome: on_shutdown:` copies `id(driver)->current_position` into
+`global_current_position`. Glasscalibur also refreshes `global_current_position` in the
+200 ms poll while moving, as Ropener does.
+
+Order relied on (ESPHome 2026.6.5): components are sorted highest setup priority first
+(`core/application.cpp:45`, sorted at `:64-65`); shutdown walks them in reverse
+(`App.reboot()` `:265-266`, `App.safe_reboot()` via `run_safe_shutdown_hooks` `:282-283`).
+`on_shutdown` defaults to priority 600 (`core/config.py:307`) and fires from
+`ShutdownTrigger::on_shutdown()` with that priority (`core/base_automation.h:147-148`).
+Globals store on shutdown at HARDWARE 800 (`components/globals/globals_component.h:45,49`)
+and the preference syncer flushes at BUS 1000 (`components/preferences/syncer.h:18-19`).
+So a priority-600 `on_shutdown` runs first, the global is stored next, then flushed.
+
+F8-P1 Resolved config, every release target: an `esphome: on_shutdown:` entry with
+   priority below 800 whose lambda assigns `global_current_position` from
+   `id(driver)->current_position`. Sabotage: copy with that priority set to 900 -> red.
+F8-P4 Bench (motion, Daniel present, fixed build): Slow; Restart mid-travel, away from
+   the ends. Expected: position after boot = the stop point ±1 %. Sabotage: base build
+   -> the travel's start position (Glasscalibur).
+F8-P5 Bench (motion, Daniel present, fixed build, no sabotage run): Slow; start a
+   firmware update mid-travel, away from the ends. Expected: the motor stops when the
+   update begins; position after reboot = the stop point ±1 %.
+
+### F8b — pending a ruling on the merge result
+
+F8b's implementation and F8-P3 wait for a ruling on F8-M's result.
+
+F8-M Merge probe, per release target, scratch wrapper from HEAD's committed files:
+   (a) adds `ota: - platform: esphome` with an `on_begin` logger action. Predicted:
+   `esphome config` exit 0; the resolved config has exactly one `platform: esphome`
+   OTA entry, and it carries `on_begin`. Sabotage: the plain resolved config -> its
+   single esphome entry has no `on_begin`.
+   (b) adds `ota: - platform: http_request` with an `on_begin` logger action.
+   Predicted: `esphome config` exits non-zero with "Too many candidates found for"
+   and "OtaHttpRequestComponent". Control: the plain config, exit 0.
+
+### F8c — the gate sees shutdown and update hooks
+
+G4 gate.py also anchors `esphome:on_shutdown` (key = priority) and every `ota` entry's
+   `on_*` (anchor `ota:<platform>`). Predicted: gate(base, base) still clean on every
+   release target. Sabotage: copy of a base dump with an `on_shutdown` entry and an
+   esphome-OTA `on_begin` added -> the previous gate.py reports the behaviour gate
+   clean (blind); the fixed gate reports exactly
+   `NEW esphome:on_shutdown :: 600.0` and `NEW ota:esphome :: on_begin`.
+F8-P2 Ropener: no change; its 200 ms poll already assigns `global_current_position`
+   every tick (base, `interval:200ms :: then`).
+
+Final gate additions (F8a, F8c), R3000 and R3100: `NEW esphome:on_shutdown :: 600.0`.
+F8b rows to be added with its ruling.
