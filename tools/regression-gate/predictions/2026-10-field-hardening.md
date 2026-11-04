@@ -656,3 +656,52 @@ End state: all three units on release firmware (Glasscalibur v2.1.0 on both, Rop
 with Daniel's settings back. The Ropener's position counter reads 100 % because Centimeters
 went back to 20 before the curtain was moved back; Daniel chose to leave it. One further
 observation from the end of the session is recorded outside this repository.
+
+## Amendment 10 — Ropener F8-P4 re-run and F8-P5 registered (Ropener copy only; appended; nothing above was edited)
+
+Per the ruling recorded outside this repository (Amendment 9): F8-P4 re-runs at the next
+bench session, predictions first, with an instrument whose timing error is under 1 % of
+travel at the test speed, recording the gap between the last reading and the restart, and
+taking the stop point from the device's own report at the restart if it has one. F8-P5 runs
+in the same session. Registered here before that session.
+
+The device's own report: the head build has none. At a restart its log shows "Restarting
+device", then "Rebooting safely" about 0.2 s later, and no position; the cover's state changes
+are not logged (checked in the 2026-11-04 session log). So the stop point is computed.
+
+Conditions: Ropener VAL3000, head bench build, Daniel present, in a window he announces in
+Pacific time; Medium (5000 steps/s); Centimeters 200 for the run (84,880 steps, so 1 % of
+travel is 849 steps, 0.17 s of motion at cruise). Afterwards the curtain is moved back to its
+starting step position before Centimeters goes back to its earlier value.
+
+Instrument
+- Position reading: GET /cover/Ropener on a kept-alive connection. t_r = PC time the response
+  arrives; rtt = its round trip, recorded. The cover's position is re-evaluated on every
+  main-loop pass, so the reading is at most rtt old.
+- Device event times: the USB log, read continuously, each line stamped on arrival.
+- Log-path latency, measured before any motion: send GET /cover/ropener (the ID form logs one
+  "Deprecated URL format" line) and record the time from sending it to that line's arrival.
+  This bounds request travel plus log latency; call it L. No motion run starts if L > 0.05 s.
+- Speed v: the slope of the position readings over the last second before the event. It must
+  be within 5 % of the nominal 5000 steps/s (0.0589 of travel per second), which shows the
+  motor is at cruise; otherwise no reading.
+- Error bound e = rtt + L. A run has a reading only if v * e < 0.01; otherwise it is an
+  instrument failure (no reading) and may be rerun.
+
+F8-P4 (re-run). From about 20 %, move toward open; when at least 30 % of travel is covered
+(so the motor is well past its acceleration) and the curtain is still at least 10 % from the
+open end, press Restart (REST).
+- Recorded: p_r, t_r, rtt, L, and t_s = arrival of "Rebooting safely" (the position is saved
+  by the shutdown hook that runs after that line). Gap g = t_s - t_r.
+- Stop point s = p_r + v * g.
+- Expected: after boot, position = s +/- 0.01, and s - (start) >= 0.30. No base sabotage
+  (ruling 11); the 30 % move keeps the stop point far from the start.
+
+F8-P5 (Ropener). The same kind of move (at least 30 % covered); then upload release v2.9.0
+for VAL3000 through the device's own web page.
+- Recorded: p_r, t_r, rtt, L, and t_u = arrival of "Firmware update starting - stopping the
+  motor". Stop point s = p_r + v * (t_u - t_r).
+- Expected, as registered in Amendment 6: the motor stops within one main-loop pass of the
+  update starting ("Firmware update starting - stopping the motor" in the log; Daniel: "did it
+  stop?" -> yes); after the reboot the unit reports Firmware Version 2.9.0 and position =
+  s +/- 0.01. It runs last and leaves the unit on release firmware.
