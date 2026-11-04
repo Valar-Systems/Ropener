@@ -346,3 +346,66 @@ F8-P2 Ropener: no change; its 200 ms poll already assigns `global_current_positi
 
 Final gate additions (F8a, F8c), R3000 and R3100: `NEW esphome:on_shutdown :: 600.0`.
 F8b rows to be added with its ruling.
+
+## Amendment 3 — P1.4 control and F8-P3 re-registered (appended; nothing above was edited)
+
+A ruling of 2026-11-04 ~05:40Z, pasted into the working session by Daniel, is recorded
+outside this repository at its own instruction. It re-registers P1.4's control, chooses
+F8b's design (one OTA state listener per product) and re-words F8-P3, as below.
+
+### P1.4 — the control's miss and run 1, on record
+
+Run 1 (no reading, instrument failure): all six `esphome config` runs exited 2 with git
+"Filename too long" while cloning the valar-motion package under the scratch path.
+Run 2 (git long paths enabled for that process only): all six exit 0. Raw-line control:
+R3000 2 changed lines (only `build_path`, moved 4 lines because the wrapper adds it
+first); R3100 50 (`build_path` plus 24 `args: []` lines swapped with a neighbour); GC 84
+(`build_path` plus 41 such swaps). Work stopped and was reported; no hash was read.
+Diagnosis: two plain runs of identical input differ the same way (GC 86 lines, R3100
+48): `esphome config` output key order is not stable between runs, so a raw diff is no
+reading. Compared with keys sorted, plain vs wrapper differ only in `build_path` on all
+three targets.
+
+### P1.4 control (re-registered)
+
+Comparison: load each resolved config with the gate's loader, dump it with keys sorted
+(as the config hash is computed), unified diff. Count = the number of `+` lines (an
+in-place value change gives one `-` and one `+`).
+- Control: plain vs wrapper. Predicted, every target: count 1, the line being
+  `build_path: build/<name>` (against `build\<name>`).
+- Its own control: plain run 1 vs plain run 2. Predicted, every target: count 0.
+- Its sabotage: a wrapper that also sets `api: port: 6054`. Predicted, every target:
+  count 2 (`build_path` and `port`).
+Then the hashes and the sabotage exactly as in Amendment 2's P1.4. Git long paths stay
+enabled only for those runs (process environment), not in any git config file.
+
+### F8b — design
+
+Each product registers one `ota::OTAGlobalStateListener` in an `on_boot` lambda at
+priority 900. On `OTA_STARTED` it issues the cover's normal STOP call
+(`make_call().set_command_stop().perform()`), so Glasscalibur runs its stop_action
+(motion_halt, plus cal_abort while calibrating) and Ropener runs its stop_action.
+Every OTA platform reports its start through the same global callback, so one listener
+covers them all. ESPHome compiles that listener interface in only when some OTA platform
+has an `on_*` trigger (`USE_OTA_STATE_LISTENER`); neither base build defines it, and
+nothing else in either config requests it. So the `esphome` OTA platform also gets an
+`on_begin` that only logs: it is there to keep that define on. (A product `on_begin`
+merges into core's esphome OTA entry; see F8-M.)
+
+### F8-P3 (re-worded)
+
+On the resolved config of every release target: `esphome:on_boot :: 900.0` registers the
+listener (`add_global_state_listener`) and its STOP call names the product's cover; the
+`esphome` OTA entry carries `on_begin`. In the generated code (`src/esphome/core/defines.h`):
+`#define USE_OTA_STATE_LISTENER`. The STOP it reaches is the stop_action checked by P3.2
+(Glasscalibur) and P3.1 (Ropener).
+Sabotage: a copy of the resolved config with the registration lambda dropped ->
+`add_global_state_listener` 0 sites (red).
+
+F8-P5 bench (unchanged otherwise): the update is started over the ESPHome update path.
+
+### Final gate additions (F8a, F8b, F8c)
+
+  NEW  esphome:on_boot :: 900.0
+  NEW  esphome:on_shutdown :: 600.0
+  NEW  ota:esphome :: on_begin
