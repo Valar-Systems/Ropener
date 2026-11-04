@@ -466,3 +466,74 @@ Check: the same `/(cover|switch|button|number|select|sensor|text_sensor|binary_s
 pattern over the product docs only: `docs/`, `README.md`, `firmware/`, `flash/`.
 Predicted: 0 at base and 0 at head. Sabotage as before: the same grep on Glasscalibur's
 base README -> 1.
+
+## Amendment 6 — bench plan re-registered for the session (appended; nothing above was edited)
+
+A ruling of 2026-11-04 ~18:15Z, pasted into the working session by Daniel, is recorded
+outside this repository at its own instruction; it approves this amendment. The session's
+ground rules, verbatim (source: the reviewer chat, Daniel's go, 2026-11-04 ~18:05Z, pasted by
+Daniel):
+
+> Daniel will run the bench session. When you announce it:
+> - propose a Pacific-time window of about an hour for both products, and let Daniel pick;
+> - send him the setup ahead, in plain steps: where each unit goes, what's plugged in, and that both are on Wi-Fi;
+> - you drive everything from the PC, at slow speed and away from the ends. Daniel watches and can pull the plug. Ask
+>   him only yes/no questions ("did it stop?");
+> - end with the release firmware back on both units, and say so.
+
+Everything runs at the Slow preset (Glasscalibur 1200 steps/s, Ropener 1500 steps/s), driven
+from the PC through each unit's web server (REST, and the web page's update upload), and
+away from the ends — except calibration's own homing to the limit switches, only if Daniel
+answers yes. Daniel answers yes/no only. Logs are read from the web server's event stream
+(not the native API, which would hide B1). Unit addresses never appear in any record.
+
+Asked of Daniel at the start (yes/no):
+- Q1 Calibration may home to the closed end (and run its open pass to the open end)? If no:
+  only B2a runs; B2b-f are recorded as not run.
+- Q2 Will you press Button 1 when asked (B2e, B3 step 2)? If no: those steps are recorded
+  as not run, covered by P3.1/P3.2.
+- Q3 Run the old-firmware comparison steps (the sabotages of B1, B2, B3 step 1, B6 step 2,
+  approved as listed)? Asked because Daniel's direction for F8 was no demonstrations of the
+  old behaviour. If no: recorded as not run; those checks then rest on their predictions and
+  the static checks.
+
+B1 (Glasscalibur, no motion): head bench build, 20 min with no native-API client (the unit
+   disabled in HA). Expected: Uptime >= 1200 s, no "No clients; rebooting". Motion tests run
+   meanwhile over REST only; nothing reboots the unit before the reading. Sabotage (if Q3):
+   v2.1.0 release build, same conditions -> "No clients; rebooting", Uptime resets at ~900 s.
+B2 (Glasscalibur, Slow, starting about 10 % open so homing is short): a web STOP in the beeps;
+   b web STOP in 1/3 homing; c web STOP about 10 s into the open pass; d STOP over the native
+   API (the path Home Assistant uses) about 10 s into the close pass, run after B1's reading;
+   e Button 1 about 10 s into the open pass (if Q2); f web Close about 10 s into the open pass.
+   Expected as committed: a-e the motor stops at once and stays stopped 10 s; f no further
+   open-pass launch and the window closes to the close limit; all: no "CAL: … leg at irun="
+   after the command, "CAL: aborted by user", 3 low beeps, Calibration Status "Aborted by
+   user - run calibration again", StallGuard Enabled ON, Vibration Stall Detection ON,
+   Vibration Threshold back to its pre-run value, Motor Current ~600 mA. "At once" is read
+   from Daniel's yes/no and the log order. Sabotage (if Q3): v2.1.0, cases c and f -> the
+   pass re-launches ("CAL: open leg at irun=15").
+B3 (Glasscalibur head bench, Slow): 1. Close from about 60 %; "BENCH: simulate stall" at about
+   50 % -> reverses at once; State and cover OPENING for the whole back-off (~20 s at 1200);
+   then IDLE; position about +7 % from the stall point; exactly 1 Obstruction event. 2. (if Q2)
+   Button 1 during the back-off -> stops at once, IDLE. 3. simulate again ~3 s into a
+   back-off -> stops at once, IDLE, a 2nd event, no second back-off. 4. simulate again ~8 s
+   into a back-off -> stops at once, no reverse toward the first stall point. Step 5 and its
+   sabotage are dropped (only reachable near an end; covered by P4.2 and its sabotage).
+   Sabotage (if Q3): bench build at 24869f6 -> step 1 shows State IDLE while reversing.
+B4: the Obstruction event shows in the web UI (both products) and in Home Assistant on the
+   Ropener (the Glasscalibur is disconnected from HA for B1).
+B5: as committed (both products, read-only GETs, head bench firmware).
+B6 (Ropener head bench, Slow): 1. Close; simulate mid-travel -> stops at once, State IDLE,
+   exactly 1 Obstruction event, position unchanged from the stop point. 2. Start-Stop Homing;
+   web STOP after ~3 s; then Open -> TSTEP Sensor during the Open ~249 (374000 / 1500).
+   Sabotage (if Q3): v2.9.0 release build -> ~125 (still at the 3000 homing speed).
+F8-P4 (both products, head firmware, no sabotage): from about 20 % open, move toward open; when
+   the motor has covered at least 20 % of travel and is still away from the end, press Restart.
+   Expected: after boot, position = the stop point ±1 %. The 20 % keeps "stop point" far from
+   "start point", so the check cannot pass vacuously.
+F8-P5 (both products, head firmware, no sabotage): the same kind of move (at least 20 % of
+   travel), then upload the release image (Glasscalibur v2.1.0, Ropener v2.9.0 for its board)
+   through the device's own web page. Expected: the motor stops within one main-loop pass of the
+   update starting ("Firmware update starting - stopping the motor" in the log; Daniel: "did it
+   stop?"); after the reboot, position = the stop point ±1 %. This leaves both units on release
+   firmware; it runs last on each unit.
