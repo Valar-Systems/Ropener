@@ -563,3 +563,25 @@ Changes for the Glasscalibur session (window 12:25–13:35 PST, Daniel present):
 - A motor-temperature watch stops motion at 60 °C (Daniel's limit); no motion step starts
   above 50 °C.
 - Ropener (B6, and its F8-P4 / F8-P5) runs afterwards, when Daniel moves the power to it.
+
+## Amendment 8 — Ropener bench session: speed and Home Assistant (appended; nothing above was edited)
+
+Daniel's answers in the working session, 2026-11-04 (verbatim, question then answer):
+
+> Should the Ropener also run at Medium (5000 steps/s) instead of Slow (1500), to limit heating as you asked for the Glasscalibur? If yes, I'll commit a short prediction update before any motion: one Ropener check's expected reading changes from about 249 to about 75 at Medium.
+> — "Yes, Medium (Recommended)"
+
+> B4 checks that the Obstruction event shows in Home Assistant on the Ropener. Will Home Assistant be connected to the Ropener during the test?
+> — "Yes"
+
+Changes for the Ropener session (head bench build for its board, Daniel present, in the
+window he announced in Pacific time):
+- Speed: the **Medium** preset (5000 steps/s) instead of Slow.
+- B6 step 2 re-registered: Start-Stop Homing; web STOP after ~3 s; then Open -> TSTEP Sensor
+  during the Open **~75** (374000 / 5000), replacing ~249. The base build would still read
+  ~125 (the 3000 homing speed), so the two stay far apart. The sabotage run is not done
+  (Q3 no, Amendment 7).
+- B6 step 1, B5, F8-P4 and F8-P5 do not depend on the speed and are unchanged.
+- B4: Home Assistant is connected to the Ropener; Daniel answers yes/no whether HA shows the
+  Obstruction event, and the web page's live stream is checked from the PC.
+- The 60 °C stop and the 50 °C no-start rule carry over from Amendment 7.
