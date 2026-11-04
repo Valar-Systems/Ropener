@@ -156,15 +156,20 @@ stepper:
                 then:
                   # Genuine stall while homing = the end stop. Commit home.
                   - script.execute: home_finish
-                # Stall outside homing (snag, or hit the far end): stop and settle,
-                # but LEAVE position alone — this point is not home, and zeroing
-                # here is what corrupted v2.7.0.
+                # Stall outside homing (snag, or hit the far end): see stall_stop.
                 else:
-                  - globals.set: { id: global_state, value: "0" }
-                  - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
-                  - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+                  - script.execute: stall_stop
 
 script:
+  # A stall outside homing (a snag, or the far end). on_stall has already
+  # stopped the motor; settle to IDLE but LEAVE the position alone — this point
+  # is not home, and zeroing here is what corrupted v2.7.0.
+  - id: stall_stop
+    then:
+      - globals.set: { id: global_state, value: "0" }
+      - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+      - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+
   # Derive TCOOLTHRS from the configured Speed.
   #
   # StallGuard only reports while TSTEP <= TCOOLTHRS, and TSTEP is inversely
