@@ -585,3 +585,74 @@ window he announced in Pacific time):
 - B4: Home Assistant is connected to the Ropener; Daniel answers yes/no whether HA shows the
   Obstruction event, and the web page's live stream is checked from the PC.
 - The 60 °C stop and the 50 °C no-start rule carry over from Amendment 7.
+
+## Amendment 9 — bench session results, 2026-11-04 (appended; nothing above was edited)
+
+A ruling of 2026-11-04 ~23:20Z on these results, pasted into the working session by Daniel,
+is recorded outside this repository at its own instruction. In short: the Glasscalibur bench
+rows are done and as predicted; the Ropener rows are as predicted except F8-P4, whose miss
+is kept and which re-runs (with Ropener F8-P5) at the next bench session, predictions first.
+
+Units: two Glasscalibur bench actuators (an older one, then a newer one after Daniel found
+the older one's carriage arm does not reach its open-end switch: a hardware design issue he
+says the newer design fixes) and one Ropener VAL3000. Head bench builds, Medium preset
+(Amendments 7 and 8), Daniel present for every motion step. Results as measured; nothing
+above was edited.
+
+Glasscalibur
+- B5 (older unit): name form 200 with name_id "cover/Glasscalibur"; ID form 200 and one
+  "Deprecated URL format" line; GET /cover/NoSuchCover 404. As predicted.
+- B1 (older unit): Uptime 2104 s with no native-API client, no reboot. As predicted.
+- B3 (older unit), steps 1-4 as predicted on the cover entity, the back-off and the events.
+  The State text sensor showed the previous operation for up to 0.5 s at each change (its
+  500 ms refresh, unchanged by this PR); Daniel's decision in the session: record it as that
+  lag, prediction unedited. Step 1: attempt 1 had no event-count reading (ESPHome 2026.6.5
+  never serves GET /event/*; the count moved to the web page's live stream) and attempt 2's
+  monitor failed on Windows local-port exhaustion: instrument failures, rerun. Step 2:
+  attempt 1 showed the press taken as a STOP, but it landed as the back-off reached its own
+  target, so "stops before finishing" had no reading; attempt 2 (press 2 s in) stopped at
+  +1.3 % of a +7.2 % back-off.
+- B4 (Glasscalibur): one Obstruction event per stall on the web page's live stream in every
+  B3 step (two in steps 3 and 4). As predicted.
+- B2: a, b and c on the older unit; d, e and f on the newer one. All as predicted: no pass
+  relaunched after the command, "CAL: aborted by user", both detectors back on, vibration
+  threshold unchanged, ~600 mA. Case f on the older unit had no reading (the script timed
+  out without sending STOP; the scripts now send STOP on any exit); case f then ran on the
+  newer unit. In case d calibration homed to the closed-end switch and its open pass reached
+  the open-end switch (Daniel's yes).
+- F8-P4: the first run ran partly past the end of the announced window (it started at
+  13:54:28 PST, the window ended at 13:55 and the Restart came at 13:56:35; I had not checked
+  the clock). Disclosed; rerun inside a new window with Daniel's go:
+  +0.222 of travel covered, position after boot 0.0023 from the last reading. As predicted.
+- F8-P5: the first run had no reading for Daniel's "did it stop?" (instrument failure; the
+  log and position matched); rerun: "Firmware update starting - stopping the motor" logged
+  before the transfer began, Daniel "Yes, it stopped", back on release v2.1.0, position after
+  boot 0.0014 from the last reading. As predicted.
+
+Ropener (VAL3000)
+- B5: name form 200 ("cover/Ropener"); ID form 200 and one "Deprecated URL format" line;
+  GET /cover/NoSuchCover 404. As predicted.
+- B6 step 1: stopped at once (IDLE at the first poll), position unchanged 6 s later, exactly
+  one Obstruction event; State showed the same refresh lag. As predicted.
+- B4: Home Assistant showed the Obstruction event (Daniel's yes), and the live stream carried
+  it. As predicted.
+- B6 step 2: TSTEP during the Open read 703, 184 and 106 while accelerating, then 74 at
+  cruise (registered: ~75 at Medium). As predicted (the cruise value).
+- F8-P4: MISS, kept. From 0.20, +0.228 of travel covered; last reading 0.428, position after
+  boot 0.4488: +0.0208 against +/-0.01. The last reading came about a third of a second before
+  the restart, and at the test speed the curtain covers about 5.9 % of travel per second, so
+  that reading cannot resolve +/-1 %. The explanation fits but is not confirmed. Re-run
+  registered in the Ropener copy of this record.
+- F8-P5: not run (the session stopped at the miss).
+- Test set-up, with Daniel's yes: Centimeters 200 for the tests (at 20 cm a full move takes
+  under 2 s), restored to 20. The Ropener has no motor-temperature sensor, so Amendment 8's
+  60 °C stop could not apply; Daniel said to go ahead with him watching.
+
+B rows not run on either unit: the old-firmware comparison runs (the sabotages of B1, B2,
+B3 step 1 and B6 step 2; Daniel's direction, Amendment 7) and B3 step 5 (dropped by
+Amendment 6). Every other B row ran.
+
+End state: all three units on release firmware (Glasscalibur v2.1.0 on both, Ropener v2.9.0)
+with Daniel's settings back. The Ropener's position counter reads 100 % because Centimeters
+went back to 20 before the curtain was moved back; Daniel chose to leave it. One further
+observation from the end of the session is recorded outside this repository.
