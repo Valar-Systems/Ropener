@@ -1,0 +1,3 @@
+# ESPHome build cache for the bench-only configs
+/.esphome/
+/secrets.yaml
