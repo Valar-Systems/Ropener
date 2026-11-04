@@ -143,6 +143,18 @@ def anchored(cfg):
         if isinstance(boot, dict):
             put("esphome:on_boot", str(boot.get("priority", "?")), boot.get("then"))
 
+    # Shutdown hooks and OTA-platform triggers run outside any entity, so the
+    # entity walk below never saw them; a dropped or rewritten one went unnoticed.
+    for down in (cfg.get("esphome") or {}).get("on_shutdown") or []:
+        if isinstance(down, dict):
+            put("esphome:on_shutdown", str(down.get("priority", "?")), down.get("then"))
+
+    for ota in cfg.get("ota") or []:
+        if isinstance(ota, dict):
+            for key, val in sorted(ota.items()):
+                if key.startswith("on_"):
+                    put(f"ota:{ota.get('platform', '?')}", key, val)
+
     for scr in cfg.get("script") or []:
         if isinstance(scr, dict):
             put(f"script:{scr.get('id','?')}", "then", scr.get("then"))

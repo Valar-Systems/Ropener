@@ -60,6 +60,10 @@ two `interval: 200ms` blocks), each gets an ordinal in merged-config order —
 `interval:200ms#1`, `interval:200ms#2`. Before this, the second silently
 overwrote the first and the gate could not see the motion-completion poll at all.
 
+**Hooks outside entities.** `esphome: on_shutdown` (anchored by priority, like
+`on_boot`) and every OTA platform's `on_*` triggers (anchored `ota:<platform>`) are
+also compared; before this the gate could not see them.
+
 ## Call sites
 
 `sites.py` lists where an action is called from, using the same anchors:
