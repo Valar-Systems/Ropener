@@ -169,6 +169,10 @@ script:
       - globals.set: { id: global_state, value: "0" }
       - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
       - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+      # One "obstructed" event per stall that stops a motion outside homing.
+      - event.trigger:
+          id: obstruction_event
+          event_type: obstructed
 
   # Derive TCOOLTHRS from the configured Speed.
   #
@@ -779,6 +783,17 @@ cover:
             - globals.set: { id: global_state, value: "2" }
             - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
       - stepper.set_target: { id: driver, target: !lambda return pos * id(global_distance_steps); }
+
+# Fires "obstructed" each time a stall stops the curtain outside homing. It can
+# only fire with StallGuard Enabled ON: with StallGuard off (the default) the
+# Ropener has no way to detect an obstruction at all — the motor keeps pulling
+# and slips until its travel is counted out, and this event never fires.
+event:
+  - platform: template
+    name: "Obstruction"
+    id: obstruction_event
+    event_types: ["obstructed"]
+    web_server: { sorting_weight: 4, sorting_group_id: group_control }
 
 button:
   - platform: template
