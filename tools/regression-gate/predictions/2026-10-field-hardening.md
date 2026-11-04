@@ -409,3 +409,41 @@ F8-P5 bench (unchanged otherwise): the update is started over the ESPHome update
   NEW  esphome:on_boot :: 900.0
   NEW  esphome:on_shutdown :: 600.0
   NEW  ota:esphome :: on_begin
+
+## Amendment 4 — three OTA platforms; F8b code predictions (appended; nothing above was edited)
+
+A ruling of 2026-11-04 ~17:05Z, pasted into the working session by Daniel, is recorded
+outside this repository at its own instruction.
+
+### Three OTA platforms, and the lesson
+
+F8-M's resolved configs list three OTA platforms on every release target: `esphome`,
+`http_request`, and `web_server` (the update upload on the device's own web page, which
+ESPHome adds whenever `web_server:` is configured; Glasscalibur's firmware README tells
+customers to use it). The earlier F8 analysis named two, because it read core's YAML.
+Lesson, on record: any "every platform" claim is read from the resolved config (the
+merged output), not from core's YAML. The one listener in F8b covers all three; F8-P3 is
+unchanged.
+
+### F8-P6 (new)
+
+On every release target's resolved config, the OTA platforms are exactly `esphome`,
+`http_request` and `web_server` — three entries, no other. Sabotage: a copy of a resolved
+config with a fourth OTA entry added -> red. A new platform can then never appear
+unexamined.
+
+### F8b code (predictions committed before it)
+
+Each product's `on_boot` at priority 900 registers one `ota::OTAGlobalStateListener`
+whose `OTA_STARTED` handler issues the cover's normal STOP; the `esphome` OTA platform
+gets a log-only `on_begin` (keeps `USE_OTA_STATE_LISTENER` compiled in). Predicted, every
+release target: `esphome config` and `esphome compile` exit 0; F8-P3 and F8-P6 pass;
+gate vs the previous commit: exactly `NEW esphome:on_boot :: 900.0` and
+`NEW ota:esphome :: on_begin`.
+
+### F8-P5 bench (path updated)
+
+Daniel present, fixed build, Slow, mid-travel away from the ends: start an update from the
+device's own web page (the path the README gives customers). Expected: the motor stops
+within one main-loop pass of the update starting; the position after the reboot is the
+stop point ±1 %.
