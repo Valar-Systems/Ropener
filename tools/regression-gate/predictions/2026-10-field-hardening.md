@@ -447,3 +447,22 @@ Daniel present, fixed build, Slow, mid-travel away from the ends: start an updat
 device's own web page (the path the README gives customers). Expected: the motor stops
 within one main-loop pass of the update starting; the position after the reboot is the
 stop point ±1 %.
+
+## Amendment 5 — P6.1 re-registered after a miss (appended; nothing above was edited)
+
+A ruling of 2026-11-04 ~17:50Z, pasted into the working session by Daniel, is recorded
+outside this repository at its own instruction.
+
+### The miss, on record
+
+P6.1 (above) predicted 0 web-control URLs in Ropener's `*.md` / `*.html` at base and head.
+Reading at head `392d615`: base 0 files, head 1 file — this predictions record itself
+(the B5 bench step, and a quoted reviewer note naming Glasscalibur URLs). Restricted to
+the product docs the count was 0. Work stopped and was reported.
+
+### P6.1 (re-registered)
+
+Check: the same `/(cover|switch|button|number|select|sensor|text_sensor|binary_sensor|light|event)/...`
+pattern over the product docs only: `docs/`, `README.md`, `firmware/`, `flash/`.
+Predicted: 0 at base and 0 at head. Sabotage as before: the same grep on Glasscalibur's
+base README -> 1.
