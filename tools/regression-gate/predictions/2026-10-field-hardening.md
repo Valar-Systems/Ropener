@@ -705,3 +705,34 @@ for VAL3000 through the device's own web page.
   update starting ("Firmware update starting - stopping the motor" in the log; Daniel: "did it
   stop?" -> yes); after the reboot the unit reports Firmware Version 2.9.0 and position =
   s +/- 0.01. It runs last and leaves the unit on release firmware.
+
+## Amendment 11 — Ropener F8-P4 stop time, from the code (Ropener copy only; appended; nothing above was edited)
+
+A follow-up ruling, recorded outside this repository, accepts Amendment 10 in principle and
+asks first: at which event does the motor actually stop on a restart? That event is the stop
+time.
+
+From the code (ESPHome 2026.6.5 Application::safe_reboot and the restart button; the TMC2209
+component pinned at b5f0e44): components are sorted by setup priority, highest first, and the
+shutdown hooks run in reverse, lowest first. A Restart therefore goes:
+1. "Restarting device" is logged, then a 100 ms delay; the motor has not stopped yet.
+2. "Rebooting safely" is logged; the safe-shutdown hooks run.
+3. Shutdown hooks below priority 600: mDNS (its hook waits 40 ms), then the API server.
+4. The product's position save (on_shutdown, priority 600).
+5. HARDWARE (800): the globals, and the TMC2209 driver's own shutdown hook, which stops the
+   motor (VACTUAL 0 over UART). No hook between the save and the stop waits.
+6. The preference flush (1000), teardown, then the reset.
+
+So the motor stops in the shutdown pass just after the position save: not at "Rebooting
+safely" and not at the reset. It stops about 40 ms after "Rebooting safely" (the mDNS wait
+plus hooks that do not wait), and within about a millisecond of the save (at the test speed,
+a few steps, under 0.01 % of travel).
+
+Change to Amendment 10, F8-P4: the stop time is t_stop = t_s + 0.040 s, where t_s is the
+arrival of "Rebooting safely"; the stop point is s = p_r + v * (t_stop - t_r). The unlogged
+remainder after the 40 ms wait (estimated under 0.02 s from the code) is added to the error
+bound: e = rtt + L + 0.02 s, and a run has a reading only if v * e < 0.01. Recorded as
+before: p_r, t_r, rtt, L, t_s.
+
+F8-P5 is unchanged: the update listener logs "Firmware update starting - stopping the motor"
+and issues the stop in the same call, so its stop time is that line's arrival, t_u.
