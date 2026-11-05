@@ -1,0 +1,24 @@
+# =============================================================================
+# BENCH ONLY — never flash this to a customer unit. Never built by CI or a release.
+# =============================================================================
+# The Ropener VAL3000 release firmware plus one test button, "BENCH: simulate
+# stall", for the bench checks in
+# tools/regression-gate/predictions/2026-10-field-hardening.md (B6): StallGuard
+# does not fire on cue, so the button runs the stall-outside-homing response on
+# demand. It acts only while the curtain is opening or closing and does what
+# on_stall's non-homing branch does: stop the motor, then stall_stop. The
+# release targets never include it.
+packages:
+  ropener: !include ../../firmware/VAL3000/Ropener-VAL3000.yml
+
+button:
+  - platform: template
+    name: "BENCH: simulate stall"
+    on_press:
+      - if:
+          condition:
+            lambda: 'int s = id(global_state); return s == 1 || s == 2;'
+          then:
+            - stepper.stop: driver
+            - logger.log: "BENCH: simulated stall"
+            - script.execute: stall_stop

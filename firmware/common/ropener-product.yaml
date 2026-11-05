@@ -48,8 +48,45 @@ substitutions:
 api:
   reboot_timeout: 0s
 
+# Log-only. Its real job: ESPHome compiles in the OTA listener interface used by
+# the stop-on-update listener (on_boot, priority 900) only when some OTA
+# platform has an on_* trigger. This merges into core's esphome OTA entry.
+ota:
+  - platform: esphome
+    on_begin:
+      - logger.log: "Firmware update starting"
+
 esphome:
+  # Capture where the motor actually is at every soft reboot (Restart button,
+  # end of a firmware update, any App.reboot). The 200 ms poll only refreshes
+  # the saved position between ticks; this takes the driver's live count at the
+  # moment of shutdown. ESPHome runs on_shutdown hooks in reverse setup-priority
+  # order, so at priority 600 this runs before the globals store their values
+  # (800) and before the preference syncer flushes them to flash (1000).
+  on_shutdown:
+    - priority: 600
+      then:
+        - lambda: 'id(global_current_position) = id(driver)->current_position;'
   on_boot:
+    # The motor stops when a firmware update begins, however it was started
+    # (ESPHome, the device's own web page, or the "Update Firmware" button).
+    # Every OTA platform reports the start of an update to ESPHome's global OTA
+    # callback; this listener answers OTA_STARTED with the cover's normal STOP,
+    # so stop_action runs exactly as if the user had pressed STOP. Registered
+    # once at boot; the callback object is created on first use.
+    - priority: 900
+      then:
+        - lambda: |-
+            struct StopOnUpdate : public ota::OTAGlobalStateListener {
+              void on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                                       ota::OTAComponent *component) override {
+                if (state != ota::OTA_STARTED) return;
+                ESP_LOGI("update", "Firmware update starting - stopping the motor");
+                id(ropener_cover).make_call().set_command_stop().perform();
+              }
+            };
+            static StopOnUpdate stop_on_update;
+            ota::get_global_ota_callback()->add_global_state_listener(&stop_on_update);
     - priority: 400.0
       then:
         - script.execute: recompute_distance
@@ -119,15 +156,24 @@ stepper:
                 then:
                   # Genuine stall while homing = the end stop. Commit home.
                   - script.execute: home_finish
-                # Stall outside homing (snag, or hit the far end): stop and settle,
-                # but LEAVE position alone — this point is not home, and zeroing
-                # here is what corrupted v2.7.0.
+                # Stall outside homing (snag, or hit the far end): see stall_stop.
                 else:
-                  - globals.set: { id: global_state, value: "0" }
-                  - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
-                  - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+                  - script.execute: stall_stop
 
 script:
+  # A stall outside homing (a snag, or the far end). on_stall has already
+  # stopped the motor; settle to IDLE but LEAVE the position alone — this point
+  # is not home, and zeroing here is what corrupted v2.7.0.
+  - id: stall_stop
+    then:
+      - globals.set: { id: global_state, value: "0" }
+      - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+      - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+      # One "obstructed" event per stall that stops a motion outside homing.
+      - event.trigger:
+          id: obstruction_event
+          event_type: obstructed
+
   # Derive TCOOLTHRS from the configured Speed.
   #
   # StallGuard only reports while TSTEP <= TCOOLTHRS, and TSTEP is inversely
@@ -708,8 +754,14 @@ cover:
     has_position: true
     assumed_state: false
     lambda: "return float(id(driver)->current_position) / float(id(global_distance_steps));"
+    # A STOP during homing must also undo homing's set-up: cancel its timeout and
+    # put the user's run speed back (homing drives at ${home_speed}). Without
+    # this, every move after a web/HA STOP mid-homing ran at the homing speed.
+    # Outside homing both are no-ops.
     stop_action:
       - stepper.stop: driver
+      - script.stop: home_timeout
+      - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
       - globals.set: { id: global_state, value: "0" }
       - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
     open_action:
@@ -731,6 +783,17 @@ cover:
             - globals.set: { id: global_state, value: "2" }
             - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
       - stepper.set_target: { id: driver, target: !lambda return pos * id(global_distance_steps); }
+
+# Fires "obstructed" each time a stall stops the curtain outside homing. It can
+# only fire with StallGuard Enabled ON: with StallGuard off (the default) the
+# Ropener has no way to detect an obstruction at all — the motor keeps pulling
+# and slips until its travel is counted out, and this event never fires.
+event:
+  - platform: template
+    name: "Obstruction"
+    id: obstruction_event
+    event_types: ["obstructed"]
+    web_server: { sorting_weight: 4, sorting_group_id: group_control }
 
 button:
   - platform: template

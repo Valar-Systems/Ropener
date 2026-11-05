@@ -50,7 +50,29 @@ be explained in the release notes.
 Run it for **each board** (VAL3000 and VAL3100); they share a product layer but
 resolve differently.
 
-Requires `pyyaml` — use the interpreter ESPHome is installed under.
+Requires `pyyaml` — use the interpreter ESPHome is installed under. The entity
+gate imports ESPHome itself to compute each entity's `object_id` (the ID Home
+Assistant's entity_id and unique_id are built from), so it must run under that
+interpreter; it exits with an error rather than silently skipping the column.
+
+**Shared anchors.** When two blocks resolve to the same anchor (Glasscalibur has
+two `interval: 200ms` blocks), each gets an ordinal in merged-config order —
+`interval:200ms#1`, `interval:200ms#2`. Before this, the second silently
+overwrote the first and the gate could not see the motion-completion poll at all.
+
+**Hooks outside entities.** `esphome: on_shutdown` (anchored by priority, like
+`on_boot`) and every OTA platform's `on_*` triggers (anchored `ota:<platform>`) are
+also compared; before this the gate could not see them.
+
+## Call sites
+
+`sites.py` lists where an action is called from, using the same anchors:
+
+```sh
+python tools/regression-gate/sites.py /tmp/new.yaml cover.stop
+python tools/regression-gate/sites.py /tmp/new.yaml script.execute --id motion_halt
+python tools/regression-gate/sites.py /tmp/new.yaml --grep "if (tgt < 0) tgt = 0;"
+```
 
 ## Known-benign differences after the valar-core rewire
 
