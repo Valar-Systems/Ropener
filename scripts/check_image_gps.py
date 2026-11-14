@@ -7,14 +7,18 @@ tiff -- the whole file is the TIFF -- and heif/avif, whose 'Exif' item is follow
 and also by a jpg/jpeg/png/webp extension. A finding is one of:
   exif-gps      a GPS IFD holding a latitude or longitude tag
   exif-unread   a HEIF whose meta cannot be parsed, or whose Exif item cannot be followed to a TIFF header
-  xmp-location  an XMP packet in an image naming a GPS or location property
+  xmp-location  an XMP location property in an image that holds a VALUE: a non-empty attribute value, or an element
+                with non-empty text or a non-empty attribute value anywhere inside it. An empty container
+                (<rdf:Bag/>, whitespace) holds no location. Two directions are deliberately conservative and are
+                KNOWN false positives: an element whose only content is a structural attribute
+                (rdf:parseType="Resource") counts, and so does a tag name met where it cannot be judged (inside text)
   container     a zip/3mf/gz/tgz/tar/xz that cannot be read in full (nested, unopenable, or past 64 MB inflated)
 Members of a readable container are judged by the same rule, reported as <container>!<member>.
 
 There is NO allowlist and no exemption: an image with GPS is fixed by stripping the GPS, never by excusing the file.
 
     python3 scripts/check_image_gps.py [--root DIR]   exit 0 clean; 1 a finding; 2 BLIND (git lists no file)
-    python3 scripts/check_image_gps.py --selftest     17 rows, synthetic plants in throwaway git repos
+    python3 scripts/check_image_gps.py --selftest     24 rows, synthetic plants in throwaway git repos
     python3 scripts/check_image_gps.py --sabotage     each sabotage, planted in a copy of this script, must turn
                                                       exactly its rows red
 It prints paths and kinds only, never a coordinate.
@@ -204,6 +208,49 @@ def exif_magic(raw, kind):
     return [], False
 
 
+_ATTRS = re.compile(rb"""[\w:.-]+\s*=\s*("[^"]*"|'[^']*')""")
+
+
+def _attrs_have_value(s):
+    """True when any attribute in s has a non-empty value."""
+    return any(m.group(1)[1:-1].strip() for m in _ATTRS.finditer(s))
+
+
+def xmp_location_value(raw):
+    """True when an XMP location property (XMP_LOC) holds a VALUE. Every occurrence of a token is accounted for:
+    an attribute holds a value when it is non-empty; a tag when its own attributes hold one (a structural
+    rdf:parseType counts: the conservative direction), or when its content up to the matching close holds non-empty
+    text or a non-empty attribute value at any depth; a closing tag holds none; and an occurrence that is neither an
+    attribute nor a tag cannot be judged, so it counts. Fires only where a token occurs: a subset of token presence."""
+    for tok in XMP_LOC:
+        t = re.escape(tok)
+        seen = 0
+        for m in re.finditer(rb"(?<![A-Za-z])" + t + rb"""\s*=\s*("[^"]*"|'[^']*')""", raw):
+            seen += 1
+            if m.group(1)[1:-1].strip():
+                return True
+        for m in re.finditer(rb"<(/?)(?:[\w.-]+:)?" + t + rb"""\b((?:[^>"']|"[^"]*"|'[^']*')*)>""", raw):
+            seen += 1
+            if m.group(1):
+                continue                                              # a closing tag
+            attrs = m.group(2)
+            if _attrs_have_value(attrs):
+                return True                                           # its own attributes, structural ones included
+            if attrs.rstrip().endswith(b"/"):
+                continue                                              # self-closing, and nothing in it
+            end = re.search(rb"</(?:[\w.-]+:)?" + t + rb"\s*>", raw[m.end():])
+            if end is None:
+                return True                                           # unclosed: cannot be judged
+            inner = raw[m.end():m.end() + end.start()]
+            if re.sub(rb"<[^>]*>", b"", inner).strip():
+                return True                                           # text
+            if _attrs_have_value(inner):
+                return True                                           # a value nested at any depth
+        if raw.count(tok) > seen:
+            return True                                               # an occurrence that is neither
+    return False
+
+
 def _tiff_gps():
     """A minimal little-endian TIFF whose IFD0 points at a GPS IFD holding a latitude (tag 2)."""
     t = bytearray(b"II*\x00" + struct.pack("<I", 8))
@@ -309,7 +356,7 @@ def kinds_of_bytes(ext, raw):
         found.add("exif-gps")
     if unread:
         found.add("exif-unread")
-    if (ext in PHOTO or kind) and b"x:xmpmeta" in raw and any(t in raw for t in XMP_LOC):
+    if (ext in PHOTO or kind) and b"x:xmpmeta" in raw and xmp_location_value(raw):
         found.add("xmp-location")
     return found
 
@@ -380,6 +427,11 @@ def _webp(tiff):
     return b"RIFF" + struct.pack("<I", 4 + len(chunk)) + b"WEBP" + chunk
 
 
+def _xmp(body):
+    """An XMP packet holding body inside rdf:RDF."""
+    return b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF>' + body + b"</rdf:RDF></x:xmpmeta>"
+
+
 def _zip(name, data):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
@@ -411,6 +463,30 @@ def selftest():
         (16, "control: a GPS JPEG present but not tracked", {"a.jpg": _jpeg()},
          {"loose.jpg": _jpeg(_exif_segment(gps))}, []),
         (17, "an empty repo is BLIND", {}, {}, "BLIND"),
+        # An XMP location property counts only when it holds a VALUE (valar-scopes #717)
+        (18, "control: an empty LocationCreated Bag",
+         {"a.jpg": _jpeg(tail=_xmp(b"<rdf:Description><Iptc4xmpExt:LocationCreated><rdf:Bag/>"
+                                   b"</Iptc4xmpExt:LocationCreated></rdf:Description>"))}, {}, []),
+        (19, "control: whitespace-only LocationShown",
+         {"a.jpg": _jpeg(tail=_xmp(b"<rdf:Description><Iptc4xmpExt:LocationShown>  \n  "
+                                   b"</Iptc4xmpExt:LocationShown></rdf:Description>"))}, {}, []),
+        (20, "a parseType-only LocationShown counts",
+         {"a.jpg": _jpeg(tail=_xmp(b"<rdf:Description><Iptc4xmpExt:LocationShown rdf:parseType=\"Resource\">"
+                                   b"</Iptc4xmpExt:LocationShown></rdf:Description>"))}, {}, [("a.jpg", "xmp-location")]),
+        (21, "a filled photoshop:City attribute",
+         {"a.jpg": _jpeg(tail=_xmp(b"<rdf:Description photoshop:City=\"Somewhere\"/>"))}, {},
+         [("a.jpg", "xmp-location")]),
+        (22, "a City attribute nested in a Bag",
+         {"a.jpg": _jpeg(tail=_xmp(b"<rdf:Description><Iptc4xmpExt:LocationCreated><rdf:Bag><rdf:li "
+                                   b"Iptc4xmpExt:City=\"Somewhere\"/></rdf:Bag></Iptc4xmpExt:LocationCreated>"
+                                   b"</rdf:Description>"))}, {}, [("a.jpg", "xmp-location")]),
+        (23, "GPSLatitude as element text",
+         {"a.jpg": _jpeg(tail=_xmp(b"<rdf:Description><exif:GPSLatitude>12,34.5N</exif:GPSLatitude>"
+                                   b"</rdf:Description>"))}, {}, [("a.jpg", "xmp-location")]),
+        (24, "a location name inside text counts",
+         {"a.jpg": _jpeg(tail=_xmp(b"<rdf:Description><dc:description><rdf:Alt><rdf:li xml:lang=\"x-default\">"
+                                   b"near the LocationShown spot</rdf:li></rdf:Alt></dc:description>"
+                                   b"</rdf:Description>"))}, {}, [("a.jpg", "xmp-location")]),
     ]
     g = ["-c", "user.name=selftest", "-c", "user.email=selftest@example.invalid", "-c", "core.autocrlf=false"]
     ok = True
@@ -446,12 +522,21 @@ SABOTAGES = {
     "S-HEIF": ("    if kind == \"he" + "if\":\n        return heif_exif(raw)\n",
                "    if kind == \"heif\":  # SABOTAGE S-HEIF\n        return [], False\n", {8, 9}),
     "S-XMP": ("    if (ext in PHOTO or kind) and b\"x:xmp" + "meta\" in raw",
-              "    if False and b\"x:xmpmeta\" in raw", {13}),
+              "    if False and b\"x:xmpmeta\" in raw", {13, 20, 21, 22, 23, 24}),
+    "S-XMPVAL": ("in raw and xmp_location_" + "value(raw):\n",
+                 "in raw and any(t in raw for t in XMP_LOC):  # SABOTAGE S-XMPVAL: token presence again\n", {18, 19}),
+    "S-XMPATTR": ("            if m.group(1)[1:-1]" + ".strip():\n                return True\n",
+                  "            if False:  # SABOTAGE S-XMPATTR\n                return True\n", {13, 21}),
+    "S-XMPOPEN": ("            if _attrs_have_value(at" + "trs):\n", "            if False:  # SABOTAGE S-XMPOPEN\n", {20}),
+    "S-XMPTEXT": ("            if re.sub(rb\"<[^>]*>\", b\"\", in" + "ner).strip():\n",
+                  "            if False:  # SABOTAGE S-XMPTEXT\n", {23}),
+    "S-XMPNEST": ("            if _attrs_have_value(in" + "ner):\n", "            if False:  # SABOTAGE S-XMPNEST\n", {22}),
+    "S-XMPUNACC": ("        if raw.count(tok) > se" + "en:\n", "        if False:  # SABOTAGE S-XMPUNACC\n", {24}),
     "S-CONTAINER": ("        if ext in CONTAINER_" + "EXT:\n            try:\n",
                     "        if False:  # SABOTAGE S-CONTAINER\n            try:\n", {14, 15}),
 }
 ROW = re.compile(r"^\s*(ok|FAIL)\s+(\d+)\s")
-NROWS = 17
+NROWS = 24
 
 
 def _selftest_of(src):

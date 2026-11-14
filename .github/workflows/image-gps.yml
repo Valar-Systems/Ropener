@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Selftest (17 synthetic rows)
+      - name: Selftest (24 synthetic rows)
         run: python3 scripts/check_image_gps.py --selftest
       - name: Sabotage (each plant must redden exactly its rows)
         run: python3 scripts/check_image_gps.py --sabotage
