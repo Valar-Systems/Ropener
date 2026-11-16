@@ -68,6 +68,14 @@ globals:
   - { id: global_distance_steps,   type: int, restore_value: no,  initial_value: '12732' }
   - { id: global_state,            type: int, restore_value: no,  initial_value: '0' }
   - { id: global_current_position, type: int, restore_value: yes, initial_value: '0' }
+  # Close overtravel: a full close drives this far PAST 0, then re-zeroes there.
+  # The drive is open-loop, so travel lost to rope slip or skipped steps on each
+  # close otherwise accumulates into a growing gap; overtravel recovers it every
+  # cycle. Default 0 = off (identical to pre-overtravel firmware). Only useful
+  # where the curtain closes against something solid -- without a stop, each
+  # close walks home further closed until it reaches one.
+  - { id: global_overtravel_cm,    type: float, restore_value: yes, initial_value: '0' }
+  - { id: global_overtravel_steps, type: int,   restore_value: no,  initial_value: '0' }
   # Physical-button gesture state (runtime only).
   - { id: b1_down,        type: bool,     restore_value: no, initial_value: 'false' }
   - { id: b2_down,        type: bool,     restore_value: no, initial_value: 'false' }
@@ -119,13 +127,27 @@ stepper:
                 then:
                   # Genuine stall while homing = the end stop. Commit home.
                   - script.execute: home_finish
-                # Stall outside homing (snag, or hit the far end): stop and settle,
-                # but LEAVE position alone — this point is not home, and zeroing
-                # here is what corrupted v2.7.0.
                 else:
-                  - globals.set: { id: global_state, value: "0" }
-                  - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
-                  - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+                  - if:
+                      # Stall in the overtravel segment of a full close (closing,
+                      # already past 0): that IS the closed end, so commit it as
+                      # home exactly as finishing the overtravel would. Without
+                      # this, overtravel + StallGuard never re-zeroes. Bounded to
+                      # position <= 0, so a mid-travel false stall cannot zero.
+                      condition:
+                        lambda: |-
+                          return id(global_state) == 2 && id(global_overtravel_steps) > 0 &&
+                                 id(driver)->current_position <= 0;
+                      then:
+                        - script.execute: set_home_zero
+                        - logger.log: "Stall in close overtravel — closed end re-zeroed to 0"
+                      # Stall outside homing (snag, or hit the far end): stop and settle,
+                      # but LEAVE position alone — this point is not home, and zeroing
+                      # here is what corrupted v2.7.0.
+                      else:
+                        - globals.set: { id: global_state, value: "0" }
+                        - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+                        - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
 
 script:
   # Derive TCOOLTHRS from the configured Speed.
@@ -153,12 +175,15 @@ script:
           id(global_tcoolthrs) = (int) v;
           id(driver)->write_register(TCOOLTHRS, v);
 
-  # Recompute the derived step cache from the persisted centimeters (one place).
+  # Recompute the derived step caches from the persisted centimeters (one place).
   - id: recompute_distance
     then:
       - globals.set:
           id: global_distance_steps
           value: !lambda "return (float(id(global_distance_cm)) / ${gear_distance_cm}) * ${steps_per_revolution};"
+      - globals.set:
+          id: global_overtravel_steps
+          value: !lambda "return (id(global_overtravel_cm) / ${gear_distance_cm}) * ${steps_per_revolution};"
 
   # --- Homing (manual by default; StallGuard only assists when sg_enabled) -----
   # Drive toward the closed end at a fixed gentle speed. It ends one of three
@@ -333,8 +358,13 @@ script:
             - cover.close: ropener_cover
 
 # --- Attach Ropener button behaviour onto core's bare buttons (btn1/btn2/btn3)
+# Core shows Button 1/2/3 in Control, where they read as clickable controls but
+# are only press indicators for the physical buttons. Move them to the bottom of
+# Diagnostics (still handy for checking the hardware buttons work). Web page
+# only -- they stay in Home Assistant unchanged for automations.
 binary_sensor:
   - id: !extend btn1
+    web_server: { sorting_weight: 20, sorting_group_id: group_diagnostics }
     on_press:
       - globals.set: { id: b1_down, value: "true" }
       - if:
@@ -425,6 +455,7 @@ binary_sensor:
                         - logger.log: "Button 1 tap: opening"
 
   - id: !extend btn2
+    web_server: { sorting_weight: 21, sorting_group_id: group_diagnostics }
     on_press:
       - globals.set: { id: b2_down, value: "true" }
       - if:
@@ -520,6 +551,7 @@ binary_sensor:
   # the hold-to-erase-credentials action.
   - id: !extend btn3
     name: "WiFi Reset"
+    web_server: { sorting_weight: 22, sorting_group_id: group_diagnostics }
     on_click:
       - min_length: 3000ms
         max_length: 10000ms
@@ -683,8 +715,41 @@ number:
       then:
         - globals.set: { id: global_distance_cm, value: !lambda "return x;" }
         - script.execute: recompute_distance
+  # Product-only: how far past 0 a full close drives before re-zeroing (see
+  # global_overtravel_cm). Same cm units as Centimeters. 0 = off.
+  - platform: template
+    name: "Close Overtravel"
+    icon: "mdi:arrow-collapse-horizontal"
+    unit_of_measurement: "cm"
+    web_server: { sorting_weight: 3, sorting_group_id: group_setup }
+    step: 0.5
+    min_value: 0
+    max_value: 10
+    mode: BOX
+    entity_category: CONFIG
+    lambda: return id(global_overtravel_cm);
+    update_interval: 1s
+    set_action:
+      then:
+        - globals.set: { id: global_overtravel_cm, value: !lambda "return x;" }
+        - script.execute: recompute_distance
 
 sensor:
+  # Percent open, for the web page: with the cover row moved to Diagnostics,
+  # nothing else on the page shows how open the curtain is. Reads the cover's own
+  # (0-clamped) position. Rounded to whole percent + delta so it only publishes
+  # when the displayed value changes, not every poll.
+  - platform: template
+    name: "Position"
+    id: sen_position
+    icon: "mdi:curtains"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    web_server: { sorting_weight: 2.1, sorting_group_id: group_control }
+    update_interval: 500ms
+    lambda: "return roundf(id(ropener_cover).position * 100.0f);"
+    filters:
+      - delta: 0.5
   # SG_RESULT and TSTEP are raw StallGuard tuning data -- meaningless with
   # StallGuard off -- so move them out of Diagnostics into the StallGuard group,
   # alongside SGTHRS/TCOOLTHRS and the enable switch.
@@ -704,10 +769,15 @@ cover:
     # falls back to generic up/down arrows; "curtain" gets the horizontal
     # open/close controls (and the right icon in Home Assistant).
     device_class: curtain
-    web_server: { sorting_weight: 1, sorting_group_id: group_control }
+    # Diagnostics, not Control: on the web page the Open/Stop/Close buttons and
+    # the Position readout replace this row (its ↑ is disabled whenever the
+    # curtain is part-open -- see button:). Web page only; HA is unaffected.
+    web_server: { sorting_weight: 23, sorting_group_id: group_diagnostics }
     has_position: true
     assumed_state: false
-    lambda: "return float(id(driver)->current_position) / float(id(global_distance_steps));"
+    # Clamped at 0: during close overtravel the position is briefly negative,
+    # which Home Assistant and the web UI would show as a negative percentage.
+    lambda: "return std::max(0.0f, float(id(driver)->current_position) / float(id(global_distance_steps)));"
     stop_action:
       - stepper.stop: driver
       - globals.set: { id: global_state, value: "0" }
@@ -716,23 +786,64 @@ cover:
       - globals.set: { id: global_state, value: "1" }
       - cover.template.publish: { id: ropener_cover, current_operation: OPENING }
       - stepper.set_target: { id: driver, target: !lambda return id(global_distance_steps); }
+    # A full close targets -overtravel (0 when off); the motion-completion poll
+    # re-zeroes when a close finishes below 0.
     close_action:
       - globals.set: { id: global_state, value: "2" }
       - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
-      - stepper.set_target: { id: driver, target: 0 }
+      - stepper.set_target: { id: driver, target: !lambda return -id(global_overtravel_steps); }
+    # A move to 0% is a full close, so it gets the same overtravel as Close.
     position_action:
       - if:
           condition:
-            lambda: 'return (pos * id(global_distance_steps)) >= id(driver)->current_position;'
+            lambda: 'return pos > 0.0f && (pos * id(global_distance_steps)) >= id(driver)->current_position;'
           then:
             - globals.set: { id: global_state, value: "1" }
             - cover.template.publish: { id: ropener_cover, current_operation: OPENING }
           else:
             - globals.set: { id: global_state, value: "2" }
             - cover.template.publish: { id: ropener_cover, current_operation: CLOSING }
-      - stepper.set_target: { id: driver, target: !lambda return pos * id(global_distance_steps); }
+      - stepper.set_target:
+          id: driver
+          target: !lambda |-
+            if (pos <= 0.0f) return -id(global_overtravel_steps);
+            return pos * id(global_distance_steps);
 
 button:
+  # Always-enabled Open / Stop / Close for the device's own web page. ESPHome's
+  # web UI disables the cover's ↑ whenever its state is OPEN -- which for a
+  # positioned cover is ANY position above 0 -- and offers no position slider, so
+  # a part-open curtain could not be opened from the config page at all. (The web
+  # server never sends assumed_state for covers, so that flag can't fix it.) The
+  # cover row itself must stay for Home Assistant, so it moves to Diagnostics
+  # instead. Close also lets you re-push at 0% when Close Overtravel is on.
+  - platform: template
+    name: "Open"
+    icon: "mdi:curtains"
+    web_server: { sorting_weight: 1.1, sorting_group_id: group_control }
+    on_press:
+      - cover.open: ropener_cover
+  # Stop while homing = "this is the closed end": commit home, exactly like a
+  # physical button press or a second Start-Stop Homing press (the guide tells
+  # users to "press Stop" there). The cover's own stop would instead cancel the
+  # home and leave the motor at home_speed.
+  - platform: template
+    name: "Stop"
+    icon: "mdi:stop"
+    web_server: { sorting_weight: 1.2, sorting_group_id: group_control }
+    on_press:
+      - if:
+          condition: { lambda: 'return id(global_state) == 3;' }
+          then:
+            - script.execute: home_finish
+          else:
+            - cover.stop: ropener_cover
+  - platform: template
+    name: "Close"
+    icon: "mdi:curtains-closed"
+    web_server: { sorting_weight: 1.3, sorting_group_id: group_control }
+    on_press:
+      - cover.close: ropener_cover
   - platform: template
     name: "Start-Stop Homing"
     web_server: { sorting_weight: 3, sorting_group_id: group_control }
@@ -821,7 +932,11 @@ text_sensor:
       }
 
 # Motion-completion poll: persist position; flip OPENING/CLOSING back to IDLE
-# when the stepper reaches target. (The sun-schedule poll lives in scheduling.)
+# when the stepper reaches target. A close that finishes below 0 just completed
+# its overtravel: that spot is the closed end, so re-zero it. A close stopped
+# short (button, Stop) never gets here -- stop_action clears global_state -- so
+# an interrupted overtravel leaves the position honest rather than zeroed.
+# (The sun-schedule poll lives in scheduling.)
 interval:
   - interval: 200ms
     then:
@@ -835,7 +950,14 @@ interval:
               return (s == 1 || s == 2) &&
                      id(driver)->current_position == id(driver)->target_position;
           then:
-            - globals.set: { id: global_state, value: "0" }
-            - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
+            - if:
+                condition:
+                  lambda: 'return id(global_state) == 2 && id(driver)->target_position < 0;'
+                then:
+                  - script.execute: set_home_zero
+                  - logger.log: "Close overtravel finished — closed end re-zeroed to 0"
+                else:
+                  - globals.set: { id: global_state, value: "0" }
+                  - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
             - globals.set: { id: b1_hold_active, value: "false" }
             - globals.set: { id: b2_hold_active, value: "false" }
