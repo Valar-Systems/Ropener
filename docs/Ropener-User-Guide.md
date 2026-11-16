@@ -121,7 +121,9 @@ Run homing when:
 
 The “State” reading on the web page shows **HOMING** while homing is running and returns to **IDLE** once you press Stop.
 
-**Gentler alternative (no straining against the stop):** use press-and-hold to inch the curtain to the fully-closed position, then hold both buttons together for 3 seconds. The device marks the current spot as home (0%) without driving into the end.
+**Setting home without driving into the end:** hold both buttons together for 3 seconds to mark the curtain's current spot as home (0%). You can use press-and-hold first to inch the curtain to where you want it — but press-and-hold stops at the spot the device *already* thinks is closed, so this can only move the closed position toward open.
+
+> **If the curtain stops short of closed** (the position has drifted), press-and-hold can't get it the rest of the way. Use homing (the steps above) instead: it keeps driving until you stop it.
 
 ---
 
