@@ -82,6 +82,8 @@ Replace XXXXXX with your device's code (the same code shown in the setup hotspot
 - **Set a position:** drag the cover slider to any point from 0% (closed) to 100% (open).
 - **Stop:** halts movement immediately and leaves the cover where it is.
 
+> **On the device's web page,** use the **Open**, **Stop** and **Close** buttons at the top of the Control section. The “Ropener” row at the bottom of Control is there for Home Assistant; its ↑ arrow greys out whenever the curtain is partly open (a limitation of the built-in page), and the page has no position slider — that is only in Home Assistant.
+
 ### Using the physical buttons
 
 The device has three buttons. While the cover is moving, a press of Button 1 or Button 2 stops it immediately. You can also press and hold a button to move the cover only while you hold it — it stops the moment you let go, and stops on its own at the fully open or closed end. This keeps it safe around children and the elderly: the cover never keeps moving on its own.
@@ -115,7 +117,7 @@ Run homing when:
 
 1. Start homing: tap Button 1 **seven times quickly**, or click the “Start-Stop Homing” button on the web page.
 2. Watch the curtain drive toward the closed end.
-3. The instant it reaches the fully-closed position, press Stop — press **either button** once, or click “Start-Stop Homing” again. This marks that spot as 0% (closed) and ends homing.
+3. The instant it reaches the fully-closed position, press Stop — press **either button** once, click **Stop** on the web page, or click “Start-Stop Homing” again. This marks that spot as 0% (closed) and ends homing.
 
 The “State” reading on the web page shows **HOMING** while homing is running and returns to **IDLE** once you press Stop.
 
@@ -259,12 +261,24 @@ These settings are optional. The defaults work for a typical installation; chang
 | Setting | What it controls | Notes |
 | --- | --- | --- |
 | Centimeters | Total travel distance of the curtain, in cm. | Set this to your curtain's open-to-closed travel. Default 30 cm. |
+| Close Overtravel | How far past closed a full close keeps pushing, in cm. | Fixes a gap that grows with every close. Default 0 (off). See below. |
 | Speed | How fast the motor runs (steps/second). | Higher is faster but louder. Effective max is 2000. |
 | Acceleration | How quickly the motor speeds up / slows down. | Higher is snappier; too high can skip or be noisy. |
 | Motor Direction | Which way the motor winds the rope (**Normal** / **Reversed ↺**). | Set to **Reversed** if Open and Close are backwards for your install. Your choice is saved and survives a power loss. |
 | IRUN value | Motor running current / torque (1–31). | Raise for more pulling force; lower if the driver runs hot. Default 25. |
 | SGTHRS value | Sensitivity of the stall detection used for homing (0–255). | See tuning note below. |
 | TCOOLTHRS value | Speed threshold above which stall detection is active. | See tuning note below. |
+
+### Close Overtravel (fixing a gap that grows every cycle)
+
+The device tracks the curtain by counting motor steps; it cannot see where the curtain actually is. If the rope slips a little on each close — common with heavy or grommet curtains — the curtain stops slightly short, and the gap grows with every open/close cycle.
+
+Close Overtravel fixes this. Every full close (Close button, the schedule, or 0% on the slider) keeps pushing this many centimeters past the closed position, then sets wherever the curtain stopped as the new closed position. Any travel lost on the way is made up at the end of the same close.
+
+- **Use it only if your curtain closes against something solid** — the two carriages meeting in the middle, or the curtain reaching the end of the rod. Without a stop, each close moves the closed position a little further until it reaches one.
+- **Choosing a value:** start at 2 cm. If the gap still builds up, raise it in small steps. It needs to be larger than the gap the curtain loses in one cycle.
+- A short motor buzz or rope slip at the very end of a close is normal with this on — that is the curtain being pushed firmly closed.
+- Pressing Stop during the overtravel stops the curtain without changing the closed position.
 
 ### Tuning stall-based homing (optional)
 
@@ -295,6 +309,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | No setup hotspot appears | Wait a full minute after power-on. If it already joined a network, hold Button 3 for 3–10 seconds to reset Wi-Fi and try again. |
 | Open/Close are reversed | Set the “Motor Direction” setting to **Reversed**. |
 | Position is wrong / drifted | Run homing (Section 5) to recalibrate. |
+| Curtain closes a little shorter every cycle | The rope is slipping or the motor is skipping steps. Try Speed = Slow or Medium and a higher Motor Current, then turn on Close Overtravel (Section 10). |
 | Schedule fires at the wrong time | Check the Timezone value (Section 7/8) and that the device has internet for time sync. |
 | Schedule doesn't run | Confirm “Schedule Enabled” is ON and that Open/Close times are set. |
 | Sun schedule opens/closes at the wrong time | Set Latitude and Longitude for your location and check the Timezone (Section 7/8). With Sun Schedule ON, the fixed Open/Close times are ignored. |
@@ -310,6 +325,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | Control (web page) | Purpose |
 | --- | --- |
 | Ropener (cover) | Open, close, set position, or stop. |
+| Open / Stop / Close | Control the curtain from the web page — always available, at any position. Stop while homing sets the closed position. |
 | State | Shows IDLE / OPENING / CLOSING / HOMING. |
 | Start-Stop Homing | Start or cancel calibration. |
 | Open Time / Close Time | Daily schedule times (fixed-time mode). |
@@ -319,6 +335,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | Sun Open Offset / Sun Close Offset | Minutes to shift open/close relative to sunrise/sunset. |
 | Timezone | Your local timezone (POSIX string). |
 | Centimeters | Curtain travel distance. |
+| Close Overtravel | Extra push past closed on every full close, to stop a gap building up. |
 | Speed / Acceleration | Motion tuning. |
 | Motor Direction | Reverse open/close direction. |
 | IRUN value | Motor torque / current. |
