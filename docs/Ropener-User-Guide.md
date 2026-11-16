@@ -82,7 +82,7 @@ Replace XXXXXX with your device's code (the same code shown in the setup hotspot
 - **Set a position:** drag the cover slider to any point from 0% (closed) to 100% (open).
 - **Stop:** halts movement immediately and leaves the cover where it is.
 
-> **On the device's web page,** use the **Open**, **Stop** and **Close** buttons at the top of the Control section. The “Ropener” row at the bottom of Control is there for Home Assistant; its ↑ arrow greys out whenever the curtain is partly open (a limitation of the built-in page), and the page has no position slider — that is only in Home Assistant.
+> **On the device's web page,** use the **Open**, **Stop** and **Close** buttons at the top of the Control section; **Position** shows how far open the curtain is. The page has no position slider — that is only in Home Assistant. (The “Ropener” row under Diagnostics is the Home Assistant curtain control; on the web page its ↑ arrow greys out whenever the curtain is partly open, so use the buttons instead.)
 
 ### Using the physical buttons
 
@@ -327,6 +327,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | Ropener (cover) | Open, close, set position, or stop. |
 | Open / Stop / Close | Control the curtain from the web page — always available, at any position. Stop while homing sets the closed position. |
 | State | Shows IDLE / OPENING / CLOSING / HOMING. |
+| Position | How far open the curtain is (0% = closed, 100% = fully open). |
 | Start-Stop Homing | Start or cancel calibration. |
 | Open Time / Close Time | Daily schedule times (fixed-time mode). |
 | Schedule Enabled | Turn the daily schedule on/off. |

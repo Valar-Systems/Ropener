@@ -358,8 +358,13 @@ script:
             - cover.close: ropener_cover
 
 # --- Attach Ropener button behaviour onto core's bare buttons (btn1/btn2/btn3)
+# Core shows Button 1/2/3 in Control, where they read as clickable controls but
+# are only press indicators for the physical buttons. Move them to the bottom of
+# Diagnostics (still handy for checking the hardware buttons work). Web page
+# only -- they stay in Home Assistant unchanged for automations.
 binary_sensor:
   - id: !extend btn1
+    web_server: { sorting_weight: 20, sorting_group_id: group_diagnostics }
     on_press:
       - globals.set: { id: b1_down, value: "true" }
       - if:
@@ -450,6 +455,7 @@ binary_sensor:
                         - logger.log: "Button 1 tap: opening"
 
   - id: !extend btn2
+    web_server: { sorting_weight: 21, sorting_group_id: group_diagnostics }
     on_press:
       - globals.set: { id: b2_down, value: "true" }
       - if:
@@ -545,6 +551,7 @@ binary_sensor:
   # the hold-to-erase-credentials action.
   - id: !extend btn3
     name: "WiFi Reset"
+    web_server: { sorting_weight: 22, sorting_group_id: group_diagnostics }
     on_click:
       - min_length: 3000ms
         max_length: 10000ms
@@ -728,6 +735,21 @@ number:
         - script.execute: recompute_distance
 
 sensor:
+  # Percent open, for the web page: with the cover row moved to Diagnostics,
+  # nothing else on the page shows how open the curtain is. Reads the cover's own
+  # (0-clamped) position. Rounded to whole percent + delta so it only publishes
+  # when the displayed value changes, not every poll.
+  - platform: template
+    name: "Position"
+    id: sen_position
+    icon: "mdi:curtains"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    web_server: { sorting_weight: 2.1, sorting_group_id: group_control }
+    update_interval: 500ms
+    lambda: "return roundf(id(ropener_cover).position * 100.0f);"
+    filters:
+      - delta: 0.5
   # SG_RESULT and TSTEP are raw StallGuard tuning data -- meaningless with
   # StallGuard off -- so move them out of Diagnostics into the StallGuard group,
   # alongside SGTHRS/TCOOLTHRS and the enable switch.
@@ -747,9 +769,10 @@ cover:
     # falls back to generic up/down arrows; "curtain" gets the horizontal
     # open/close controls (and the right icon in Home Assistant).
     device_class: curtain
-    # Bottom of Control: on the web page the Open/Stop/Close buttons replace this
-    # row (its ↑ is disabled whenever the curtain is part-open -- see button:).
-    web_server: { sorting_weight: 4, sorting_group_id: group_control }
+    # Diagnostics, not Control: on the web page the Open/Stop/Close buttons and
+    # the Position readout replace this row (its ↑ is disabled whenever the
+    # curtain is part-open -- see button:). Web page only; HA is unaffected.
+    web_server: { sorting_weight: 23, sorting_group_id: group_diagnostics }
     has_position: true
     assumed_state: false
     # Clamped at 0: during close overtravel the position is briefly negative,
@@ -792,8 +815,8 @@ button:
   # positioned cover is ANY position above 0 -- and offers no position slider, so
   # a part-open curtain could not be opened from the config page at all. (The web
   # server never sends assumed_state for covers, so that flag can't fix it.) The
-  # cover row itself must stay for Home Assistant, so it moves to the bottom of
-  # Control instead. Close also lets you re-push at 0% when Close Overtravel is on.
+  # cover row itself must stay for Home Assistant, so it moves to Diagnostics
+  # instead. Close also lets you re-push at 0% when Close Overtravel is on.
   - platform: template
     name: "Open"
     icon: "mdi:curtains"
