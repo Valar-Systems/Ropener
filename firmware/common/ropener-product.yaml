@@ -76,6 +76,21 @@ globals:
   # close walks home further closed until it reaches one.
   - { id: global_overtravel_cm,    type: float, restore_value: yes, initial_value: '0' }
   - { id: global_overtravel_steps, type: int,   restore_value: no,  initial_value: '0' }
+  # Shipped run current. Core defaults IRUN to 25 (~1.56 A), which overheats the
+  # TMC2209 on long or heavy runs: it switches the motor off until it cools while
+  # the step count keeps running, so the curtain silently loses position (field
+  # report: 190 cm, 4 grommet panels; IRUN 30 cut out every other second). 20 is
+  # ~1.26 A -- about 35% less heat for ~80% of the torque. Only units that never
+  # changed IRUN / Motor Current pick this up: an unchanged global is never
+  # written to flash, so a value the user saved always wins.
+  - id: !extend global_irun
+    initial_value: '20'
+  # Motor-driver temperature, polled from DRV_STATUS (see the 1s interval).
+  # 0 = OK, 1 = hot (OTPW prewarning, ~120 C), 2 = shut down (OT). The latch
+  # remembers a shutdown since the last home: steps were lost while the driver
+  # was off, so the position can't be trusted until home is set again.
+  - { id: global_drv_temp,       type: int,  restore_value: no, initial_value: '0' }
+  - { id: global_drv_ot_latched, type: bool, restore_value: no, initial_value: 'false' }
   # Physical-button gesture state (runtime only).
   - { id: b1_down,        type: bool,     restore_value: no, initial_value: 'false' }
   - { id: b2_down,        type: bool,     restore_value: no, initial_value: 'false' }
@@ -216,6 +231,7 @@ script:
       - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
       - globals.set: { id: global_state, value: "0" }
       - globals.set: { id: global_current_position, value: "0" }
+      - globals.set: { id: global_drv_ot_latched, value: "false" }   # position trusted again
       - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
       - logger.log: "Home set to 0"
 
@@ -254,6 +270,7 @@ script:
       - stepper.set_speed: { id: driver, speed: !lambda "return id(global_speed);" }
       - globals.set: { id: global_state, value: "0" }
       - globals.set: { id: global_current_position, value: "0" }
+      - globals.set: { id: global_drv_ot_latched, value: "false" }   # position trusted again
       - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
       - logger.log: "Home position set to 0"
 
@@ -931,6 +948,26 @@ text_sensor:
         default: return {"IDLE"};
       }
 
+  # Makes driver overheating visible. When the TMC2209 overheats it switches the
+  # motor off until it cools, but steps keep being counted -- the curtain drifts
+  # with no other sign anywhere. "Overheated earlier" persists until home is set
+  # (homing, both-buttons, or a Close Overtravel close), since the position may
+  # be off until then.
+  - platform: template
+    name: "Driver Temperature"
+    id: drv_temp_status
+    icon: "mdi:thermometer-alert"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 3, sorting_group_id: group_diagnostics }
+    update_interval: 1s
+    lambda: |-
+      switch (id(global_drv_temp)) {
+        case 2: return {"Overheated - motor shut off"};
+        case 1: return {"Hot"};
+      }
+      if (id(global_drv_ot_latched)) return {"Overheated earlier - re-home"};
+      return {"OK"};
+
 # Motion-completion poll: persist position; flip OPENING/CLOSING back to IDLE
 # when the stepper reaches target. A close that finishes below 0 just completed
 # its overtravel: that spot is the closed end, so re-zero it. A close stopped
@@ -961,3 +998,22 @@ interval:
                   - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
             - globals.set: { id: b1_hold_active, value: "false" }
             - globals.set: { id: b2_hold_active, value: "false" }
+
+  # Driver temperature watch. Polls DRV_STATUS directly: the tmc2209 component's
+  # on_status events only read DRV_STATUS when DIAG fires on a driver error, so
+  # the prewarning (the useful early sign) would never be reported. A failed UART
+  # read returns 0, which reads as OK -- never a false alarm. Logs transitions.
+  - interval: 1s
+    then:
+      - lambda: |-
+          const uint32_t drv = (uint32_t) id(driver)->read_register(DRV_STATUS);
+          int t = 0;
+          if (id(driver)->extract_field(drv, OT_FIELD)) t = 2;
+          else if (id(driver)->extract_field(drv, OTPW_FIELD)) t = 1;
+          if (t != id(global_drv_temp)) {
+            if (t == 2) ESP_LOGW("ropener", "Motor driver overheated and shut off: steps lost, position may be off. Lower Motor Current.");
+            else if (t == 1) ESP_LOGW("ropener", "Motor driver hot (~120 C). Lower Motor Current if this keeps happening.");
+            else ESP_LOGI("ropener", "Motor driver temperature back to normal");
+            id(global_drv_temp) = t;
+          }
+          if (t == 2) id(global_drv_ot_latched) = true;

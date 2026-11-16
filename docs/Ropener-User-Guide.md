@@ -265,7 +265,7 @@ These settings are optional. The defaults work for a typical installation; chang
 | Speed | How fast the motor runs (steps/second). | Higher is faster but louder. Effective max is 2000. |
 | Acceleration | How quickly the motor speeds up / slows down. | Higher is snappier; too high can skip or be noisy. |
 | Motor Direction | Which way the motor winds the rope (**Normal** / **Reversed ↺**). | Set to **Reversed** if Open and Close are backwards for your install. Your choice is saved and survives a power loss. |
-| IRUN value | Motor running current / torque (1–31). | Raise for more pulling force; lower if the driver runs hot. Default 25. |
+| IRUN value | Motor running current / torque (1–31). | Raise for more pulling force; lower if the driver runs hot. Default 20. Too high makes the driver overheat and cut out — watch Driver Temperature (Diagnostics). |
 | SGTHRS value | Sensitivity of the stall detection used for homing (0–255). | See tuning note below. |
 | TCOOLTHRS value | Speed threshold above which stall detection is active. | See tuning note below. |
 
@@ -309,12 +309,12 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | No setup hotspot appears | Wait a full minute after power-on. If it already joined a network, hold Button 3 for 3–10 seconds to reset Wi-Fi and try again. |
 | Open/Close are reversed | Set the “Motor Direction” setting to **Reversed**. |
 | Position is wrong / drifted | Run homing (Section 5) to recalibrate. |
-| Curtain closes a little shorter every cycle | The rope is slipping or the motor is skipping steps. Try Speed = Slow or Medium and a higher Motor Current, then turn on Close Overtravel (Section 10). |
+| Curtain closes a little shorter every cycle | First check **Driver Temperature** under Diagnostics. If it ever shows Hot or Overheated, the motor driver is cutting out on long runs: **lower** the Motor Current (IRUN) and keep Speed at Medium. Otherwise the rope may be slipping. In either case, Close Overtravel (Section 10) makes up the difference on every close. |
 | Schedule fires at the wrong time | Check the Timezone value (Section 7/8) and that the device has internet for time sync. |
 | Schedule doesn't run | Confirm “Schedule Enabled” is ON and that Open/Close times are set. |
 | Sun schedule opens/closes at the wrong time | Set Latitude and Longitude for your location and check the Timezone (Section 7/8). With Sun Schedule ON, the fixed Open/Close times are ignored. |
 | Homing motor doesn't stop on its own | Expected in this version — automatic stop (StallGuard) is disabled. Press Stop when the curtain reaches the closed position (Section 5). |
-| Motor driver gets hot | Lower the IRUN value. |
+| Motor driver gets hot / Driver Temperature shows Hot or Overheated | Lower the IRUN value (Motor Current). When the driver overheats it switches the motor off until it cools, which loses position — re-home afterwards. |
 
 ---
 
@@ -342,6 +342,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | IRUN value | Motor torque / current. |
 | SGTHRS / TCOOLTHRS | Stall-detection tuning for homing. |
 | SG_RESULT / TSTEP | Live readings used when tuning homing. |
+| Driver Temperature | Motor driver health: OK, Hot, Overheated, or “Overheated earlier – re-home” (Diagnostics). |
 
 **Physical buttons**
 
