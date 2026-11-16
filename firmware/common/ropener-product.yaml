@@ -78,10 +78,21 @@ esphome:
         - stepper.set_target:
             id: driver
             target: !lambda "return id(global_current_position);"
-    # MQTT last: every MQTT setting has been restored by now (their on_value /
-    # on_turn_on fire during restore and are ignored until mqtt_boot_done).
+    # Last, once everything is set up and restored:
     - priority: -100.0
       then:
+        # First (and, until something changes, only) publish of the entities that
+        # don't poll (update_interval: never) -- they publish on change instead of
+        # republishing the same value every second, which over MQTT was ~1/s per
+        # entity while idle.
+        - component.update: sel_speed
+        - component.update: sel_btn_swap
+        - component.update: num_motor_current
+        - component.update: num_centimeters
+        - component.update: num_overtravel
+        - component.update: mqtt_password
+        # MQTT: every MQTT setting has been restored by now (their on_value /
+        # on_turn_on fire during restore and are ignored until mqtt_boot_done).
         - globals.set: { id: mqtt_boot_done, value: 'true' }
         - script.execute: mqtt_apply
 
@@ -716,13 +727,17 @@ select:
   # Like Motor Direction, this holds NO state of its own -- it reads and writes
   # global_speed (the single source of truth, restored on boot) so it never fights
   # the restored value. The raw Speed slider lives in the advanced group.
+  # Publish-on-change: no polling (a 1s poll republished the unchanged value
+  # every second -- ~1/s of MQTT traffic per entity, idle). Refreshed instead at
+  # end of boot, here, and by num_speed's set_action (the only other writer of
+  # global_speed).
   - platform: template
     name: "Speed"
     id: sel_speed
     icon: "mdi:speedometer"
     entity_category: CONFIG
     web_server: { sorting_weight: 1, sorting_group_id: group_tuning }
-    update_interval: 1s
+    update_interval: never
     options: ["Slow", "Medium", "Fast"]
     lambda: |-
       const int sp = id(global_speed);
@@ -742,6 +757,7 @@ select:
           // unplug seconds later.
           global_speed->update();
           global_preferences->sync();
+      - component.update: sel_speed
 
   # Swap the two physical buttons' open/close roles -- same select UI as Motor
   # Direction, and its sibling install-orientation setting (sits right under it in
@@ -760,7 +776,7 @@ select:
     icon: "mdi:swap-horizontal"
     entity_category: CONFIG
     web_server: { sorting_weight: 2, sorting_group_id: group_setup }
-    update_interval: 1s
+    update_interval: never   # publish-on-change: refreshed at boot and below
     options:
       - "Normal"
       - "Swapped ↔"
@@ -772,6 +788,7 @@ select:
           id(global_btn_swap) = (x.find("Swap") != std::string::npos);
           global_btn_swap->update();
           global_preferences->sync();
+      - component.update: sel_btn_swap
 
 # --- Rename core tuning entities to Ropener's existing entity_ids -------------
 number:
@@ -781,6 +798,10 @@ number:
   - id: !extend num_irun
     name: "IRUN value"
     web_server: { sorting_weight: 7, sorting_group_id: group_sg }
+    # Appends to core's set_action: IRUN changes the register Motor Current
+    # mirrors, and Motor Current no longer polls.
+    set_action:
+      - component.update: num_motor_current
   # Friendly motor current in mA. The driver knows Rsense (100 mOhm) and Vsense,
   # so write_run_current_mA / read_run_current_mA do the register conversion --
   # no formula here. Max is the register ceiling (~1915 mA at these settings);
@@ -798,7 +819,9 @@ number:
     mode: BOX
     entity_category: CONFIG
     lambda: "return id(driver)->read_run_current_mA();"
-    update_interval: 5s
+    # Publish-on-change: refreshed at end of boot, here, and by num_irun (the
+    # only other writer of the IRUN register).
+    update_interval: never
     set_action:
       - lambda: "id(driver)->write_run_current_mA((uint16_t) x);"
       # Keep global_irun (persisted, reapplied in on_boot) in sync with the
@@ -806,6 +829,7 @@ number:
       - globals.set:
           id: global_irun
           value: !lambda "return id(driver)->read_field(IRUN_FIELD);"
+      - component.update: num_motor_current
   # TCOOLTHRS and SGTHRS are StallGuard tuning -> move them to the bottom group_sg
   # (core puts them in group_stallguard, which we're retiring in favour of group_sg).
   - id: !extend num_tcoolthrs
@@ -822,6 +846,7 @@ number:
     web_server: { sorting_weight: 8, sorting_group_id: group_sg }
     set_action:
       - script.execute: recompute_tcoolthrs
+      - component.update: sel_speed   # the preset mirrors global_speed, no polling
   # Acceleration is core's last remaining member of group_motion (Speed moved to the
   # advanced group above). Move it to group_tuning too so core's group_motion is fully
   # empty and does not render a duplicate "Motion Tuning" header.
@@ -830,6 +855,7 @@ number:
   # Product-only: travel distance in centimeters (drives the cover's 0..1 range).
   - platform: template
     name: "Centimeters"
+    id: num_centimeters
     web_server: { sorting_weight: 1, sorting_group_id: group_setup }
     step: 1
     min_value: 1
@@ -837,11 +863,12 @@ number:
     mode: BOX
     entity_category: CONFIG
     lambda: return id(global_distance_cm);
-    update_interval: 1s
+    update_interval: never   # publish-on-change: refreshed at boot and below
     set_action:
       then:
         - globals.set: { id: global_distance_cm, value: !lambda "return x;" }
         - script.execute: recompute_distance
+        - component.update: num_centimeters
   # MQTT broker port (see mqtt_apply). 1883 is plain MQTT; TLS isn't supported.
   - platform: template
     name: "MQTT Port"
@@ -862,6 +889,7 @@ number:
   # global_overtravel_cm). Same cm units as Centimeters. 0 = off.
   - platform: template
     name: "Close Overtravel"
+    id: num_overtravel
     icon: "mdi:arrow-collapse-horizontal"
     unit_of_measurement: "cm"
     web_server: { sorting_weight: 3, sorting_group_id: group_setup }
@@ -871,11 +899,12 @@ number:
     mode: BOX
     entity_category: CONFIG
     lambda: return id(global_overtravel_cm);
-    update_interval: 1s
+    update_interval: never   # publish-on-change: refreshed at boot and below
     set_action:
       then:
         - globals.set: { id: global_overtravel_cm, value: !lambda "return x;" }
         - script.execute: recompute_distance
+        - component.update: num_overtravel
 
 sensor:
   # Percent open, for the web page: with the cover row moved to Diagnostics,
@@ -1090,7 +1119,7 @@ text:
     mode: password
     min_length: 0
     max_length: 63
-    update_interval: 2s
+    update_interval: never   # publish-on-change: refreshed at boot and below
     lambda: 'return {id(mqtt_password_value).empty() ? std::string("") : std::string("(saved)")};'
     set_action:
       - if:
@@ -1098,6 +1127,7 @@ text:
             lambda: 'return x != "(saved)";'
           then:
             - globals.set: { id: mqtt_password_value, value: !lambda "return x;" }
+            - component.update: mqtt_password
             - script.execute: mqtt_apply
 
 switch:
@@ -1157,6 +1187,16 @@ text_sensor:
       if (ts >= 0xFFFFF) return {"Ready (stopped)"};
       if (ts <= tc)      return {"Armed"};
       return {"Below threshold"};
+    # Publish-on-change for the live status texts: they still poll (their value
+    # comes from many places), but an unchanged result is dropped instead of
+    # republished -- each was ~1-2 MQTT messages/s while idle. Each use of this
+    # anchor compiles to its own lambda, so `last` is per entity.
+    filters: &publish_on_change
+      - lambda: |-
+          static std::string last;
+          if (x == last) return {};
+          last = x;
+          return x;
 
   # Whether MQTT is actually connected, and where its topics live.
   - platform: template
@@ -1173,6 +1213,7 @@ text_sensor:
       if (id(mqtt_client)->is_connected())
         return {"Connected - topics under " + id(mqtt_client)->get_topic_prefix() + "/"};
       return {"Connecting..."};
+    filters: *publish_on_change
 
   - platform: template
     name: "State"
@@ -1186,6 +1227,7 @@ text_sensor:
         case 3: return {"HOMING"};
         default: return {"IDLE"};
       }
+    filters: *publish_on_change
 
   # Makes driver overheating visible. When the TMC2209 overheats it switches the
   # motor off until it cools, but steps keep being counted -- the curtain drifts
@@ -1206,6 +1248,7 @@ text_sensor:
       }
       if (id(global_drv_ot_latched)) return {"Overheated earlier - re-home"};
       return {"OK"};
+    filters: *publish_on_change
 
 # Motion-completion poll: persist position; flip OPENING/CLOSING back to IDLE
 # when the stepper reaches target. A close that finishes below 0 just completed
