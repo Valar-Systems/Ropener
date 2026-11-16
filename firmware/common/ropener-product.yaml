@@ -48,6 +48,24 @@ substitutions:
 api:
   reboot_timeout: 0s
 
+# Optional MQTT, for home automation without Home Assistant. Compiled in but
+# OFF: the broker is a placeholder, and the real address / port / credentials
+# are typed on the config page (MQTT group) and applied at runtime by
+# mqtt_apply. Discovery is off -- Home Assistant users already have the native
+# API, and discovery would duplicate every entity there. Topics default to the
+# device name with its MAC suffix (e.g. ropener-eec3f4/...), so several units
+# can share one broker -- but ESPHome bakes the status (online/offline) and
+# debug topics at compile time WITHOUT the suffix, so mqtt_apply rebuilds those
+# from the runtime prefix. reboot_timeout 0: ESPHome's default reboots the
+# device after 15 min without a broker, which with a wrong address typed in
+# would restart the curtain mid-travel (same reason as api: above).
+mqtt:
+  id: mqtt_client
+  broker: "0.0.0.0"
+  enable_on_boot: false
+  discovery: false
+  reboot_timeout: 0s
+
 esphome:
   on_boot:
     - priority: 400.0
@@ -60,6 +78,12 @@ esphome:
         - stepper.set_target:
             id: driver
             target: !lambda "return id(global_current_position);"
+    # MQTT last: every MQTT setting has been restored by now (their on_value /
+    # on_turn_on fire during restore and are ignored until mqtt_boot_done).
+    - priority: -100.0
+      then:
+        - globals.set: { id: mqtt_boot_done, value: 'true' }
+        - script.execute: mqtt_apply
 
 # --- Product state (tuning/direction globals come from core; sun globals from
 #     the scheduling mixin) -----------------------------------------------------
@@ -95,6 +119,14 @@ globals:
   - { id: global_drv_ot_latched, type: bool, restore_value: no, initial_value: 'false' }
   - { id: global_drv_shutdowns,  type: int,  restore_value: no, initial_value: '0' }
   - { id: global_drv_err_active, type: bool, restore_value: no, initial_value: 'false' }
+  # Set at the end of boot; mqtt_apply ignores calls before it (see on_boot).
+  - { id: mqtt_boot_done,        type: bool, restore_value: no, initial_value: 'false' }
+  # The real MQTT password (the "MQTT Password" text only reports "(saved)").
+  - id: mqtt_password_value
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 63
+    initial_value: '""'
   # Physical-button gesture state (runtime only).
   - { id: b1_down,        type: bool,     restore_value: no, initial_value: 'false' }
   - { id: b2_down,        type: bool,     restore_value: no, initial_value: 'false' }
@@ -197,6 +229,35 @@ script:
           id(global_drv_ot_latched) = true;
           ESP_LOGW("ropener", "Motor driver shut off (#%d, via %s): steps lost, position may be off. Lower Motor Current.",
                    id(global_drv_shutdowns), via.c_str());
+
+  # Apply the MQTT settings from the config page: drop any existing connection,
+  # then, if MQTT is on and a broker is set, load broker / port / credentials and
+  # reconnect. Runs on every change to any MQTT setting and once at end of boot.
+  # enable()/disable() are no-ops when already in that state.
+  - id: mqtt_apply
+    then:
+      - lambda: |-
+          if (!id(mqtt_boot_done)) return;
+          auto *m = id(mqtt_client);
+          std::string broker = id(mqtt_broker).state;
+          const auto b = broker.find_first_not_of(" \t");
+          const auto e = broker.find_last_not_of(" \t");
+          broker = (b == std::string::npos) ? "" : broker.substr(b, e - b + 1);
+          m->disable();
+          if (!id(mqtt_enabled).state || broker.empty()) return;
+          const uint16_t port = (uint16_t) id(mqtt_port).state;
+          m->set_broker_address(broker);
+          m->set_broker_port(port);
+          m->set_username(id(mqtt_username).state);
+          m->set_password(id(mqtt_password_value));
+          // Per-unit status/debug topics (compile-time ones lack the MAC suffix).
+          const std::string &p = m->get_topic_prefix();
+          m->set_birth_message(mqtt::MQTTMessage{p + "/status", "online", 0, true});
+          m->set_last_will(mqtt::MQTTMessage{p + "/status", "offline", 0, true});
+          m->set_shutdown_message(mqtt::MQTTMessage{p + "/status", "offline", 0, true});
+          m->set_log_message_template(mqtt::MQTTMessage{p + "/debug", "", 0, true});
+          m->enable();
+          ESP_LOGI("ropener", "MQTT: connecting to %s:%u", broker.c_str(), (unsigned) port);
 
   # Derive TCOOLTHRS from the configured Speed.
   #
@@ -765,6 +826,22 @@ number:
       then:
         - globals.set: { id: global_distance_cm, value: !lambda "return x;" }
         - script.execute: recompute_distance
+  # MQTT broker port (see mqtt_apply). 1883 is plain MQTT; TLS isn't supported.
+  - platform: template
+    name: "MQTT Port"
+    id: mqtt_port
+    icon: "mdi:numeric"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 3, sorting_group_id: group_mqtt }
+    min_value: 1
+    max_value: 65535
+    step: 1
+    mode: BOX
+    optimistic: true
+    restore_value: true
+    initial_value: 1883
+    on_value:
+      - script.execute: mqtt_apply
   # Product-only: how far past 0 a full close drives before re-zeroing (see
   # global_overtravel_cm). Same cm units as Centimeters. 0 = off.
   - platform: template
@@ -934,9 +1011,78 @@ web_server:
     # group at weight 22 -- directly under Setup (20), above Schedule (25) -- and move
     # every motion entity to it. Core's group_motion is left empty and does not render.
     - { id: group_tuning, name: "Motion Tuning", sorting_weight: 22 }
+    # MQTT settings: optional, so below the everyday groups, above Diagnostics (60).
+    - { id: group_mqtt, name: "MQTT", sorting_weight: 50 }
     - { id: group_sg, name: "StallGuard (experimental)", sorting_weight: 70 }
 
+# MQTT connection settings, typed on the config page (see mqtt: and mqtt_apply).
+# All restored across reboots and firmware updates; any change reconnects.
+text:
+  - platform: template
+    name: "MQTT Broker"
+    id: mqtt_broker
+    icon: "mdi:server-network"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 2, sorting_group_id: group_mqtt }
+    mode: text
+    min_length: 0
+    max_length: 64
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    on_value:
+      - script.execute: mqtt_apply
+  - platform: template
+    name: "MQTT Username"
+    id: mqtt_username
+    icon: "mdi:account"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 4, sorting_group_id: group_mqtt }
+    mode: text
+    min_length: 0
+    max_length: 64
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    on_value:
+      - script.execute: mqtt_apply
+  # Write-only. ESPHome's web server masks a password text's "state" but still
+  # sends the real text in "value", so anyone on the LAN could read it from
+  # /text/MQTT Password. So the real password lives in mqtt_password_value and
+  # this entity only ever reports "(saved)" or "". Typing a new one saves it; the
+  # page echoing "(saved)" back is ignored rather than stored as the password.
+  - platform: template
+    name: "MQTT Password"
+    id: mqtt_password
+    icon: "mdi:form-textbox-password"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 5, sorting_group_id: group_mqtt }
+    mode: password
+    min_length: 0
+    max_length: 63
+    update_interval: 2s
+    lambda: 'return {id(mqtt_password_value).empty() ? std::string("") : std::string("(saved)")};'
+    set_action:
+      - if:
+          condition:
+            lambda: 'return x != "(saved)";'
+          then:
+            - globals.set: { id: mqtt_password_value, value: !lambda "return x;" }
+            - script.execute: mqtt_apply
+
 switch:
+  - platform: template
+    name: "MQTT Enabled"
+    id: mqtt_enabled
+    icon: "mdi:lan-connect"
+    entity_category: CONFIG
+    web_server: { sorting_weight: 1, sorting_group_id: group_mqtt }
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - script.execute: mqtt_apply
+    on_turn_off:
+      - script.execute: mqtt_apply
   # Master opt-in for StallGuard. Default OFF: the shipped product homes manually
   # (Start-Stop button) and never reacts to a chip stall. Turn this on only to
   # use sensorless auto-homing / obstruction detection, which needs SGTHRS tuned
@@ -981,6 +1127,21 @@ text_sensor:
       if (ts >= 0xFFFFF) return {"Ready (stopped)"};
       if (ts <= tc)      return {"Armed"};
       return {"Below threshold"};
+
+  # Whether MQTT is actually connected, and where its topics live.
+  - platform: template
+    name: "MQTT Status"
+    id: mqtt_status
+    icon: "mdi:lan-check"
+    entity_category: DIAGNOSTIC
+    web_server: { sorting_weight: 6, sorting_group_id: group_mqtt }
+    update_interval: 2s
+    lambda: |-
+      if (!id(mqtt_enabled).state) return {"Off"};
+      if (id(mqtt_broker).state.find_first_not_of(" \t") == std::string::npos) return {"No broker set"};
+      if (id(mqtt_client)->is_connected())
+        return {"Connected - topics under " + id(mqtt_client)->get_topic_prefix() + "/"};
+      return {"Connecting..."};
 
   - platform: template
     name: "State"

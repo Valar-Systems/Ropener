@@ -301,6 +301,31 @@ If you use Home Assistant, the device is discovered automatically over the local
 
 When first added, Home Assistant may warn that communication is not encrypted. The device still works normally. To remove the warning, an encryption key can be enabled in the firmware configuration (a setup step for the installer).
 
+### MQTT (for other home automation systems)
+
+If you use something other than Home Assistant (Node-RED, openHAB, Homey, and so on), the device can connect to your MQTT broker. Everything is set on the web page, in the **MQTT** section; no firmware changes are needed.
+
+1. Enter your broker's address in **MQTT Broker** (for example `192.168.1.10` or `mqtt.local`).
+2. Set **MQTT Port** if it isn't the standard 1883.
+3. If your broker needs a login, enter **MQTT Username** and **MQTT Password**. Once saved, the password shows only as “(saved)” — it can't be read back from the device.
+4. Turn on **MQTT Enabled**.
+
+**MQTT Status** shows **Connected** and the topic prefix, for example `ropener-a1b2c3/`. Each device uses its own prefix, so several Ropeners can share one broker. The main topics are:
+
+| Topic | Use |
+| --- | --- |
+| `<prefix>/cover/ropener/command` | Send `OPEN`, `CLOSE` or `STOP`. |
+| `<prefix>/cover/ropener/position/command` | Send a position from `0` (closed) to `100` (open). |
+| `<prefix>/cover/ropener/state` | The curtain's state. |
+| `<prefix>/cover/ropener/position/state` | The current position, 0–100. |
+| `<prefix>/status` | `online` / `offline` (offline is sent automatically if the device drops off). |
+
+Every other reading and setting on the web page has its own topic under the same prefix. Notes:
+
+- Changing any MQTT setting reconnects straight away. Settings are kept across restarts and firmware updates.
+- Plain MQTT only (no TLS).
+- MQTT runs alongside the web page and Home Assistant; it doesn't replace them. Home Assistant auto-discovery over MQTT is off, so Home Assistant users won't see the device twice.
+
 ---
 
 ## 12. Troubleshooting
@@ -346,6 +371,8 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | SG_RESULT / TSTEP | Live readings used when tuning homing. |
 | Driver Temperature | Motor driver health: OK, Hot, Overheated, or “Overheated earlier – re-home” (Diagnostics). |
 | Driver Shutdowns | How many times the motor driver has shut off since the last restart (Diagnostics). Each one loses position. |
+| MQTT Broker / Port / Username / Password / Enabled | Connect to an MQTT broker (Section 11). |
+| MQTT Status | Off, Connecting…, or Connected with the topic prefix. |
 
 **Physical buttons**
 
