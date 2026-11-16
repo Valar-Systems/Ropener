@@ -1,6 +1,6 @@
 {
   "name": "Ropener",
-  "version": "2.12.0",
+  "version": "2.12.1",
   "home_assistant_domain": "esphome",
   "new_install_prompt_erase": false,
   "builds": [
