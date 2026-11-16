@@ -311,7 +311,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | No setup hotspot appears | Wait a full minute after power-on. If it already joined a network, hold Button 3 for 3–10 seconds to reset Wi-Fi and try again. |
 | Open/Close are reversed | Set the “Motor Direction” setting to **Reversed**. |
 | Position is wrong / drifted | Run homing (Section 5) to recalibrate. |
-| Curtain closes a little shorter every cycle | First check **Driver Temperature** under Diagnostics. If it ever shows Hot or Overheated, the motor driver is cutting out on long runs: **lower** the Motor Current (IRUN) and keep Speed at Medium. Otherwise the rope may be slipping. In either case, Close Overtravel (Section 10) makes up the difference on every close. |
+| Curtain closes a little shorter every cycle | First check **Driver Temperature** and **Driver Shutdowns** under Diagnostics. If Driver Temperature ever shows Hot or Overheated, or Driver Shutdowns is above 0, the motor driver is cutting out on long runs: **lower** the Motor Current (IRUN) and keep Speed at Medium. Otherwise the rope may be slipping. In either case, Close Overtravel (Section 10) makes up the difference on every close. |
 | Schedule fires at the wrong time | Check the Timezone value (Section 7/8) and that the device has internet for time sync. |
 | Schedule doesn't run | Confirm “Schedule Enabled” is ON and that Open/Close times are set. |
 | Sun schedule opens/closes at the wrong time | Set Latitude and Longitude for your location and check the Timezone (Section 7/8). With Sun Schedule ON, the fixed Open/Close times are ignored. |
@@ -345,6 +345,7 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | SGTHRS / TCOOLTHRS | Stall-detection tuning for homing. |
 | SG_RESULT / TSTEP | Live readings used when tuning homing. |
 | Driver Temperature | Motor driver health: OK, Hot, Overheated, or “Overheated earlier – re-home” (Diagnostics). |
+| Driver Shutdowns | How many times the motor driver has shut off since the last restart (Diagnostics). Each one loses position. |
 
 **Physical buttons**
 

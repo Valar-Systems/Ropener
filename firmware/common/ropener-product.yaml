@@ -85,12 +85,16 @@ globals:
   # written to flash, so a value the user saved always wins.
   - id: !extend global_irun
     initial_value: '20'
-  # Motor-driver temperature, polled from DRV_STATUS (see the 1s interval).
-  # 0 = OK, 1 = hot (OTPW prewarning, ~120 C), 2 = shut down (OT). The latch
-  # remembers a shutdown since the last home: steps were lost while the driver
-  # was off, so the position can't be trusted until home is set again.
+  # Motor-driver temperature, polled from DRV_STATUS (see the 250ms interval).
+  # 0 = OK, 1 = hot (OTPW prewarning, ~120 C), 2 = shut down (OT) -- live, for
+  # the status text. The latch remembers a shutdown since the last home: steps
+  # were lost while the driver was off, so the position can't be trusted until
+  # home is set again. Shutdowns are COUNTED separately, exactly once each, from
+  # GSTAT.drv_err (see drv_shutdown_seen); err_active is that flag's edge state.
   - { id: global_drv_temp,       type: int,  restore_value: no, initial_value: '0' }
   - { id: global_drv_ot_latched, type: bool, restore_value: no, initial_value: 'false' }
+  - { id: global_drv_shutdowns,  type: int,  restore_value: no, initial_value: '0' }
+  - { id: global_drv_err_active, type: bool, restore_value: no, initial_value: 'false' }
   # Physical-button gesture state (runtime only).
   - { id: b1_down,        type: bool,     restore_value: no, initial_value: 'false' }
   - { id: b2_down,        type: bool,     restore_value: no, initial_value: 'false' }
@@ -163,8 +167,37 @@ stepper:
                         - globals.set: { id: global_state, value: "0" }
                         - cover.template.publish: { id: ropener_cover, current_operation: IDLE }
                         - logger.log: "Stall detected outside homing — motor stopped, position unchanged"
+    # The component's half of shutdown counting (see drv_shutdown_seen). On a
+    # DIAG edge it reads GSTAT and, if drv_err is set, clears it and reports
+    # DRIVER_ERROR -- so a shutdown it clears first never reaches our poll and
+    # must be counted here. Key on DRIVER_ERROR, not OVERTEMPERATURE: the
+    # component never re-reads OT falling, so repeat OVERTEMPERATURE events don't
+    # fire.
+    on_status:
+      - lambda: |-
+          if (code == esphome::tmc2209::DRIVER_ERROR) id(drv_shutdown_seen)->execute("DIAG");
 
 script:
+  # Count one driver shutdown, exactly once. Every shutdown (overheat or short)
+  # sets GSTAT.drv_err, which stays set until cleared. Two readers clear it: our
+  # 250ms poll, and the tmc2209 component on a DIAG edge (-> on_status
+  # DRIVER_ERROR). Whichever clears it reports here; err_active blocks the other
+  # from re-counting the same shutdown until the poll sees the flag clear. On
+  # hardware neither reader alone caught them all: the old 1s/250ms OT poll
+  # missed sub-poll shutdowns, and DIAG is held high during moves, so the
+  # component merged several shutdowns into one late event.
+  - id: drv_shutdown_seen
+    parameters:
+      via: string
+    then:
+      - lambda: |-
+          if (id(global_drv_err_active)) return;
+          id(global_drv_err_active) = true;
+          id(global_drv_shutdowns) += 1;
+          id(global_drv_ot_latched) = true;
+          ESP_LOGW("ropener", "Motor driver shut off (#%d, via %s): steps lost, position may be off. Lower Motor Current.",
+                   id(global_drv_shutdowns), via.c_str());
+
   # Derive TCOOLTHRS from the configured Speed.
   #
   # StallGuard only reports while TSTEP <= TCOOLTHRS, and TSTEP is inversely
@@ -767,6 +800,20 @@ sensor:
     lambda: "return roundf(id(ropener_cover).position * 100.0f);"
     filters:
       - delta: 0.5
+  # Motor-driver shutdowns since boot (see drv_shutdown_seen). Each one lost
+  # steps, so a non-zero count on a drifting curtain points straight at heat:
+  # lower Motor Current. Also lets a test compare counted vs heard cut-outs.
+  - platform: template
+    name: "Driver Shutdowns"
+    id: sen_drv_shutdowns
+    icon: "mdi:thermometer-off"
+    entity_category: DIAGNOSTIC
+    accuracy_decimals: 0
+    web_server: { sorting_weight: 3.1, sorting_group_id: group_diagnostics }
+    update_interval: 1s
+    lambda: "return id(global_drv_shutdowns);"
+    filters:
+      - delta: 0.5
   # SG_RESULT and TSTEP are raw StallGuard tuning data -- meaningless with
   # StallGuard off -- so move them out of Diagnostics into the StallGuard group,
   # alongside SGTHRS/TCOOLTHRS and the enable switch.
@@ -999,21 +1046,35 @@ interval:
             - globals.set: { id: b1_hold_active, value: "false" }
             - globals.set: { id: b2_hold_active, value: "false" }
 
-  # Driver temperature watch. Polls DRV_STATUS directly: the tmc2209 component's
-  # on_status events only read DRV_STATUS when DIAG fires on a driver error, so
-  # the prewarning (the useful early sign) would never be reported. A failed UART
-  # read returns 0, which reads as OK -- never a false alarm. Logs transitions.
-  - interval: 1s
+  # Driver watch, two parts. (1) Shutdowns, from the sticky GSTAT.drv_err flag,
+  # counted exactly once via drv_shutdown_seen. (2) Live temperature from
+  # DRV_STATUS for the status text -- polled because the component only reads
+  # DRV_STATUS on a driver error, so the prewarning (the useful early sign)
+  # would never be seen. A failed UART read returns 0, which reads as OK --
+  # never a false alarm.
+  - interval: 250ms
     then:
       - lambda: |-
+          const uint32_t gstat = (uint32_t) id(driver)->read_register(GSTAT);
+          if (id(driver)->extract_field(gstat, DRV_ERR_FIELD)) {
+            id(drv_shutdown_seen)->execute("poll");
+            // Write-1-to-clear this bit only (write_field would read-modify-write
+            // and also clear reset/uv_cp). It only clears once the error
+            // condition is gone, so it reads 1 again until then -- err_active
+            // keeps that from counting twice.
+            id(driver)->write_register(GSTAT, DRV_ERR_MASK);
+          } else {
+            id(global_drv_err_active) = false;
+          }
+
           const uint32_t drv = (uint32_t) id(driver)->read_register(DRV_STATUS);
           int t = 0;
           if (id(driver)->extract_field(drv, OT_FIELD)) t = 2;
           else if (id(driver)->extract_field(drv, OTPW_FIELD)) t = 1;
           if (t != id(global_drv_temp)) {
-            if (t == 2) ESP_LOGW("ropener", "Motor driver overheated and shut off: steps lost, position may be off. Lower Motor Current.");
-            else if (t == 1) ESP_LOGW("ropener", "Motor driver hot (~120 C). Lower Motor Current if this keeps happening.");
-            else ESP_LOGI("ropener", "Motor driver temperature back to normal");
+            // t == 2 isn't logged here: drv_shutdown_seen logs each shutdown once.
+            if (t == 1) ESP_LOGW("ropener", "Motor driver hot (~120 C). Lower Motor Current if this keeps happening.");
+            else if (t == 0) ESP_LOGI("ropener", "Motor driver temperature back to normal");
             id(global_drv_temp) = t;
           }
           if (t == 2) id(global_drv_ot_latched) = true;
