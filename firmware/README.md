@@ -27,7 +27,7 @@ Once everything is set, you have to manually set the home position. There are 3 
 
 1. In the settings, under Diagnostic, there is a "Start-Stop Homing" button. Press it and it will begin to close the curtain. Press it again to stop the curtain. This will now be the zero position.
 2. Tap the left button (Button 1) on the motor **seven times quickly**. It will begin to close the curtain. Press either button once to stop it — this stops the motor and sets the position to zero.
-3. Move the curtain to the spot you want to call "closed" (use hold-to-run, below), then **hold both buttons at once for 3 seconds**. The current position is set as home (0) without driving into the end stop.
+3. Move the curtain to the spot you want to call "closed" (use hold-to-run, below), then **hold both buttons at once for 3 seconds**. The current position is set as home (0) without driving into the end stop. Hold-to-run stops at the position the device already thinks is closed, so this can only move home toward open. **If the curtain stops short of closed (the position has drifted), use method 1 or 2 instead** — homing keeps driving until you stop it.
 
 It should now be homed to position 0, and when you press the open button, it should travel the centimeters distance you set in the settings.
 

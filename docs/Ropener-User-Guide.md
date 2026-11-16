@@ -121,7 +121,9 @@ Run homing when:
 
 The “State” reading on the web page shows **HOMING** while homing is running and returns to **IDLE** once you press Stop.
 
-**Gentler alternative (no straining against the stop):** use press-and-hold to inch the curtain to the fully-closed position, then hold both buttons together for 3 seconds. The device marks the current spot as home (0%) without driving into the end.
+**Setting home without driving into the end:** hold both buttons together for 3 seconds to mark the curtain's current spot as home (0%). You can use press-and-hold first to inch the curtain to where you want it — but press-and-hold stops at the spot the device *already* thinks is closed, so this can only move the closed position toward open.
+
+> **If the curtain stops short of closed** (the position has drifted), press-and-hold can't get it the rest of the way. Use homing (the steps above) instead: it keeps driving until you stop it.
 
 ---
 
@@ -265,7 +267,7 @@ These settings are optional. The defaults work for a typical installation; chang
 | Speed | How fast the motor runs (steps/second). | Higher is faster but louder. Effective max is 2000. |
 | Acceleration | How quickly the motor speeds up / slows down. | Higher is snappier; too high can skip or be noisy. |
 | Motor Direction | Which way the motor winds the rope (**Normal** / **Reversed ↺**). | Set to **Reversed** if Open and Close are backwards for your install. Your choice is saved and survives a power loss. |
-| IRUN value | Motor running current / torque (1–31). | Raise for more pulling force; lower if the driver runs hot. Default 25. |
+| IRUN value | Motor running current / torque (1–31). | Raise for more pulling force; lower if the driver runs hot. Default 20. Too high makes the driver overheat and cut out — watch Driver Temperature (Diagnostics). |
 | SGTHRS value | Sensitivity of the stall detection used for homing (0–255). | See tuning note below. |
 | TCOOLTHRS value | Speed threshold above which stall detection is active. | See tuning note below. |
 
@@ -309,12 +311,12 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | No setup hotspot appears | Wait a full minute after power-on. If it already joined a network, hold Button 3 for 3–10 seconds to reset Wi-Fi and try again. |
 | Open/Close are reversed | Set the “Motor Direction” setting to **Reversed**. |
 | Position is wrong / drifted | Run homing (Section 5) to recalibrate. |
-| Curtain closes a little shorter every cycle | The rope is slipping or the motor is skipping steps. Try Speed = Slow or Medium and a higher Motor Current, then turn on Close Overtravel (Section 10). |
+| Curtain closes a little shorter every cycle | First check **Driver Temperature** and **Driver Shutdowns** under Diagnostics. If Driver Temperature ever shows Hot or Overheated, or Driver Shutdowns is above 0, the motor driver is cutting out on long runs: **lower** the Motor Current (IRUN) and keep Speed at Medium. Otherwise the rope may be slipping. In either case, Close Overtravel (Section 10) makes up the difference on every close. |
 | Schedule fires at the wrong time | Check the Timezone value (Section 7/8) and that the device has internet for time sync. |
 | Schedule doesn't run | Confirm “Schedule Enabled” is ON and that Open/Close times are set. |
 | Sun schedule opens/closes at the wrong time | Set Latitude and Longitude for your location and check the Timezone (Section 7/8). With Sun Schedule ON, the fixed Open/Close times are ignored. |
 | Homing motor doesn't stop on its own | Expected in this version — automatic stop (StallGuard) is disabled. Press Stop when the curtain reaches the closed position (Section 5). |
-| Motor driver gets hot | Lower the IRUN value. |
+| Motor driver gets hot / Driver Temperature shows Hot or Overheated | Lower the IRUN value (Motor Current). When the driver overheats it switches the motor off until it cools, which loses position — re-home afterwards. |
 
 ---
 
@@ -342,6 +344,8 @@ When first added, Home Assistant may warn that communication is not encrypted. T
 | IRUN value | Motor torque / current. |
 | SGTHRS / TCOOLTHRS | Stall-detection tuning for homing. |
 | SG_RESULT / TSTEP | Live readings used when tuning homing. |
+| Driver Temperature | Motor driver health: OK, Hot, Overheated, or “Overheated earlier – re-home” (Diagnostics). |
+| Driver Shutdowns | How many times the motor driver has shut off since the last restart (Diagnostics). Each one loses position. |
 
 **Physical buttons**
 
