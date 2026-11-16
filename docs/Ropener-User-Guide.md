@@ -322,7 +322,7 @@ If you use something other than Home Assistant (Node-RED, openHAB, Homey, and so
 
 Every other reading and setting on the web page has its own topic under the same prefix. Notes:
 
-- Changing any MQTT setting reconnects straight away. Settings are kept across restarts and firmware updates.
+- Fill in the settings first, then turn on **MQTT Enabled** — it connects straight away. If you change a setting after that (or turn MQTT off), MQTT Status says **press Restart to Apply**: press the **Restart to Apply** button in the MQTT section. The device never restarts by itself for this. Settings are kept across restarts and firmware updates.
 - Plain MQTT only (no TLS).
 - MQTT runs alongside the web page and Home Assistant; it doesn't replace them. Home Assistant auto-discovery over MQTT is off, so Home Assistant users won't see the device twice.
 
@@ -372,7 +372,8 @@ Every other reading and setting on the web page has its own topic under the same
 | Driver Temperature | Motor driver health: OK, Hot, Overheated, or “Overheated earlier – re-home” (Diagnostics). |
 | Driver Shutdowns | How many times the motor driver has shut off since the last restart (Diagnostics). Each one loses position. |
 | MQTT Broker / Port / Username / Password / Enabled | Connect to an MQTT broker (Section 11). |
-| MQTT Status | Off, Connecting…, or Connected with the topic prefix. |
+| MQTT Status | Off, Connecting…, Connected with the topic prefix, or “press Restart to Apply” after a change. |
+| Restart to Apply | Restarts the device so changed MQTT settings take effect. |
 
 **Physical buttons**
 
