@@ -24,9 +24,11 @@ jobs:
             asset: Ropener-VAL3100
     steps:
       - uses: actions/checkout@v4
+      # ESPHome needs Python 3.12+ (2026.10). On 3.11, `pip install esphome`
+      # silently stops at the last release that still supported it (2026.6.5).
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
       - name: Install ESPHome
         run: pip install esphome
 
@@ -41,11 +43,15 @@ jobs:
             esphome compile "${{ matrix.config }}"
           fi
 
+      # ESPHome 2026.10+ builds with ESP-IDF directly and writes the images to
+      # .esphome/build/<name>/build/ (older releases: .pioenvs/<name>/).
       - name: Collect binaries + md5
         run: |
           mkdir -p dist
-          F=$(find . -path "*/.pioenvs/*/firmware.factory.bin" | head -1)
-          O=$(find . -path "*/.pioenvs/*/firmware.ota.bin" | head -1)
+          B="$(dirname "${{ matrix.config }}")/.esphome/build"
+          F=$(find "$B" -name firmware.factory.bin | head -1)
+          O=$(find "$B" -name firmware.ota.bin | head -1)
+          if [ -z "$F" ] || [ -z "$O" ]; then echo "::error::firmware images not found under $B"; exit 1; fi
           cp "$F" "dist/${{ matrix.asset }}.factory.bin"
           cp "$O" "dist/${{ matrix.asset }}.ota.bin"
           md5sum "dist/${{ matrix.asset }}.ota.bin" | cut -d' ' -f1 > "dist/${{ matrix.asset }}.ota.bin.md5"

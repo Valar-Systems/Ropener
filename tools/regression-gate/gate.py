@@ -113,17 +113,24 @@ def behaviours(cfg):
     def put(anchor, key, body):
         out[(anchor, key)] = json.dumps(canon(body), sort_keys=True)
 
+    # Several packages register on_boot at the same priority (core, product and
+    # scheduling all use -100) and intervals at the same period; keep every
+    # body under that anchor, in merge order, so one can't hide another.
+    grouped = {}
     for boot in (cfg.get("esphome") or {}).get("on_boot") or []:
         if isinstance(boot, dict):
-            put("esphome:on_boot", str(boot.get("priority", "?")), boot.get("then"))
+            grouped.setdefault(("esphome:on_boot", str(boot.get("priority", "?"))), []).append(boot.get("then"))
+
+    for iv in cfg.get("interval") or []:
+        if isinstance(iv, dict):
+            grouped.setdefault((f"interval:{iv.get('interval','?')}", "then"), []).append(iv.get("then"))
+
+    for (anchor, key), bodies in grouped.items():
+        put(anchor, key, bodies)
 
     for scr in cfg.get("script") or []:
         if isinstance(scr, dict):
             put(f"script:{scr.get('id','?')}", "then", scr.get("then"))
-
-    for iv in cfg.get("interval") or []:
-        if isinstance(iv, dict):
-            put(f"interval:{iv.get('interval','?')}", "then", iv.get("then"))
 
     for domain in DOMAINS:
         block = cfg.get(domain)

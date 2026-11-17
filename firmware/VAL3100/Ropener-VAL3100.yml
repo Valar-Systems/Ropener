@@ -33,12 +33,12 @@ esphome:
 packages:
   valar_core:
     url: https://github.com/Valar-Systems/valar-motion
-    ref: v0.3.1
+    ref: v0.3.2
     files: [common/valar-core.yaml]
     refresh: 1d
   scheduling:
     url: https://github.com/Valar-Systems/valar-motion
-    ref: v0.3.1
+    ref: v0.3.2
     files: [common/scheduling.yaml]
     refresh: 1d
   product: !include ../common/ropener-product.yaml
