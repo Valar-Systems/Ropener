@@ -41,6 +41,8 @@ It should now be homed to position 0, and when you press the open button, it sho
 | Press & hold Button 2 | Open **only while held** — stops the instant you let go, and stops automatically at the open end |
 | Tap Button 1 seven times quickly | Start homing |
 | Hold both buttons for 3 seconds | Set the current position as home (0) |
+| Hold the Wi-Fi button 3–10 seconds | Clear saved Wi-Fi and reboot into setup |
+| Hold the Wi-Fi button 15–30 seconds | Security reset: clear the API encryption key, web login and Wi-Fi; calibration and settings are kept. The motor buzzes at 15 s (the curtain doesn't move). |
 | Any press while the curtain is moving | Stops it instantly |
 | Any press while homing | Stops it and sets the position to zero |
 
@@ -50,5 +52,15 @@ Hold-to-run is the child- and elderly-friendly mode: the curtain only moves whil
 
 Two ways to update:
 
-- **Over the air, from the device:** open the settings page and, under Diagnostics, press **"Update Firmware (GitHub)"**. The device downloads the latest release for its model straight from GitHub, flashes itself, and reboots — no computer needed. (Requires an internet connection.) There's no progress display: a successful update just restarts the device. If an update fails, **Firmware Update** (also under Diagnostics) says why; a failed update leaves the current firmware running.
+- **Over the air, from the device:** open the settings page and, under Diagnostics, press **"Update Firmware (GitHub)"**. The device downloads the latest release for its model straight from GitHub, flashes itself, and reboots — no computer needed. (Requires an internet connection.) **Firmware Update** shows “Updating… the unit will restart when done” while it runs; there's no progress bar. If an update fails, it says why instead; a failed update leaves the current firmware running.
 - **Manually:** download the `*.ota.bin` (for a device already on your network) or `*.factory.bin` (for a fresh USB flash) for your model from the [latest release](https://github.com/Valar-Systems/Ropener/releases/latest) and upload it as before.
+
+## Security
+
+The firmware includes valar-motion's security add-on (`common/security.yaml`):
+
+- **API encryption, no key in the firmware.** Home Assistant (2025.8+) generates a key and sets it on the device the first time it connects. From then on only that key works.
+- **Optional web login** under Security on the device page. It applies after a restart and uses Digest auth. The same password protects native (port 3232) OTA uploads. Without a login, the page (including its `/update` upload) and native OTA are open to anyone on the network, as before. Native OTA with the API key is accepted without the password.
+- **Security reset:** hold the Wi-Fi button 15–30 s (table above).
+
+If you upload your own ESPHome configuration over the network to a device running this firmware, your configuration's `ota` must send a password. Use `password: ""` if no web login is set; otherwise use the web login password. Uploading through the device's web page (`/update`, behind the web login if one is set) and USB flashing work as before.

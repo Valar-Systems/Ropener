@@ -18,9 +18,9 @@ Ropener is a Wi-Fi connected curtain/cover controller. It pulls a poly rope with
 6. [Set Up the Daily Schedule](#6-set-up-the-daily-schedule)
 7. [Setting Your Timezone](#7-setting-your-timezone)
 8. [Timezone POSIX Strings](#8-timezone-posix-strings)
-9. [Resetting Wi-Fi](#9-resetting-wi-fi)
+9. [Resetting Wi-Fi or Security](#9-resetting-wi-fi-or-security)
 10. [Adjusting How It Moves (Advanced)](#10-adjusting-how-it-moves-advanced)
-11. [Home Assistant (Optional)](#11-home-assistant-optional)
+11. [Home Assistant and Security](#11-home-assistant-and-security)
 12. [Troubleshooting](#12-troubleshooting)
 13. [Quick Reference](#13-quick-reference)
 
@@ -97,6 +97,7 @@ The device has three buttons. While the cover is moving, a press of Button 1 or 
 | Button 2 | Press and hold | Opens only while held; stops on release and at the open end. |
 | Button 1 + Button 2 | Hold both 3 sec | Sets the current position as home / 0% (see Section 5). |
 | Button 3 | Long press (3–10 sec) | Clears saved Wi-Fi and reboots into setup (see Section 9). |
+| Button 3 | Hold 15–30 sec (buzz at 15 sec) | Security reset: clears the Home Assistant key, web login and Wi-Fi (see Section 9). |
 
 ---
 
@@ -244,15 +245,23 @@ Most of Europe observes EU daylight saving (forward on the last Sunday of March,
 
 ---
 
-## 9. Resetting Wi-Fi
+## 9. Resetting Wi-Fi or Security
 
-If you move the device to a new network, or want to hand it to someone else, you can erase the saved Wi-Fi details:
+Button 3 has two long holds. Neither one moves the curtain or changes its position, calibration, schedule, timezone, MQTT or tuning settings.
 
-- Press and hold Button 3 for 3 to 10 seconds.
+**Wi-Fi reset (hold 3–10 seconds).** Use this to move the device to a new network:
+
+- Press and hold Button 3 for 3 to 10 seconds, then let go.
 - The device erases its saved network and reboots.
-- After rebooting it broadcasts the “ropener-XXXXXX” setup hotspot again — follow Section 2 to connect it to a network.
+- After rebooting it broadcasts the “ropener-XXXXXX” setup hotspot again. Follow Section 2 to connect it to a network.
 
-> **Note:** This only clears Wi-Fi credentials. Your schedule, timezone, and tuning settings are kept.
+**Security reset (hold 15–30 seconds).** Use this if you forgot the web page login, or to start over with Home Assistant (for example before giving the device to someone else):
+
+- Press and hold Button 3. At **15 seconds** the motor gives a short buzz (the curtain doesn't move). Let go before 30 seconds.
+- The device erases the Home Assistant encryption key, the web page login and the saved Wi-Fi, then reboots into the setup hotspot. Follow Section 2 to connect it to a network.
+- **In Home Assistant**, a card for the device appears under **Settings → Devices & services**. It says the device “disabled transport encryption” and asks you to confirm removing the encryption key. **Click it and confirm** (nothing to type). Home Assistant then sets up a new encrypted connection by itself.
+
+If you let go between 10 and 15 seconds, or after 30 seconds, nothing happens.
 
 ---
 
@@ -295,11 +304,27 @@ To tune: run the cover under normal load while watching SG_RESULT, note the valu
 
 ---
 
-## 11. Home Assistant (Optional)
+## 11. Home Assistant and Security
 
 If you use Home Assistant, the device is discovered automatically over the local network and appears as a cover plus all the controls and readings in this guide. You do not need Home Assistant to use any feature — the web page offers the same controls.
 
-When first added, Home Assistant may warn that communication is not encrypted. The device still works normally. To remove the warning, an encryption key can be enabled in the firmware configuration (a setup step for the installer).
+### Encrypted connection (automatic)
+
+The first time Home Assistant connects (version 2025.8 or newer), it creates an encryption key, stores it on the device and uses it from then on. There's nothing to set up, and from then on only your Home Assistant can talk to the device this way. **API Encryption** under **Security** on the web page shows **Key set** once this has happened. The key itself is never shown.
+
+- **After a security reset** (Section 9), Home Assistant shows a card for the device. Click it and confirm; it re-secures the device by itself.
+- **Older Home Assistant versions** keep working without encryption.
+- **Other programs** that talk to the device the way Home Assistant does (the ESPHome API) need the key once Home Assistant has set it. MQTT and the web page are not affected.
+
+### Web page login (optional)
+
+By default anyone on your network can open the web page, and use it to change settings or install firmware. The Home Assistant encryption doesn't change that; a login does. To require a login:
+
+1. Under **Security**, enter a **Web Login Username** and **Web Login Password**. The password is never displayed afterwards.
+2. Press **Restart** under **Diagnostics**. **Web Login** under **Security** shows **On** after the restart.
+3. Your browser now asks for the username and password when you open the page.
+
+The same password protects network firmware uploads from a computer. “Update Firmware (GitHub)” still works once you're logged in. To turn the login off, clear the username and press **Restart**. If you forget the login, use the security reset (Section 9).
 
 ### MQTT (for other home automation systems)
 
@@ -336,8 +361,10 @@ Every other reading and setting on the web page has its own topic under the same
 | No setup hotspot appears | Wait a full minute after power-on. If it already joined a network, hold Button 3 for 3–10 seconds to reset Wi-Fi and try again. |
 | Open/Close are reversed | Set the “Motor Direction” setting to **Reversed**. |
 | Position is wrong / drifted | Run homing (Section 5) to recalibrate. |
-| “Update Firmware (GitHub)” didn't update | A successful update shows no progress: the device installs it and restarts by itself, usually within a minute. If it didn't update, check **Firmware Update** under Diagnostics: it says why the update failed (for example no internet, or GitHub's security certificate couldn't be verified). A failed update never changes the firmware the device is running — fix the cause and press the button again. |
+| “Update Firmware (GitHub)” didn't update | While it updates, **Firmware Update** shows “Updating… the unit will restart when done”; there's no progress bar, and the device restarts by itself, usually within a minute. If it didn't update, check **Firmware Update** under Diagnostics: it says why the update failed (for example no internet, or GitHub's security certificate couldn't be verified). A failed update never changes the firmware the device is running — fix the cause and press the button again. |
 | Curtain closes a little shorter every cycle | First check **Driver Temperature** and **Driver Shutdowns** under Diagnostics. If Driver Temperature ever shows Hot or Overheated, or Driver Shutdowns is above 0, the motor driver is cutting out on long runs: **lower** the Motor Current (IRUN) and keep Speed at Medium. Otherwise the rope may be slipping. In either case, Close Overtravel (Section 10) makes up the difference on every close. |
+| Forgot the web page login | Use the security reset: hold Button 3 for 15–30 seconds (Section 9). |
+| Home Assistant shows a card saying the device “disabled transport encryption” | Expected after a security reset. Click it and confirm; Home Assistant re-secures the device by itself (Section 11). |
 | Schedule fires at the wrong time | Check the Timezone value (Section 7/8) and that the device has internet for time sync. |
 | Schedule doesn't run | Confirm “Schedule Enabled” is ON and that Open/Close times are set. |
 | Sun schedule opens/closes at the wrong time | Set Latitude and Longitude for your location and check the Timezone (Section 7/8). With Sun Schedule ON, the fixed Open/Close times are ignored. |
@@ -372,7 +399,10 @@ Every other reading and setting on the web page has its own topic under the same
 | SG_RESULT / TSTEP | Live readings used when tuning homing. |
 | Driver Temperature | Motor driver health: OK, Hot, Overheated, or “Overheated earlier – re-home” (Diagnostics). |
 | Driver Shutdowns | How many times the motor driver has shut off since the last restart (Diagnostics). Each one loses position. |
-| Firmware Update | Why the last “Update Firmware (GitHub)” press failed, if it did (Diagnostics). A successful update just restarts the device. |
+| Firmware Update | “Updating… the unit will restart when done” after you press “Update Firmware (GitHub)”, or why the update failed (Diagnostics). |
+| Web Login Username / Password | Optional web page login (Security). Applies after Restart. |
+| Web Login | Off, On, or whether a change applies after the next restart (Security). |
+| API Encryption | “Key set” once Home Assistant has secured the connection, otherwise “No key yet” (Security). |
 | MQTT Broker / Port / Username / Password / Enabled | Connect to an MQTT broker (Section 11). |
 | MQTT Status | Off, Connecting…, Connected with the topic prefix, or “press Restart to Apply” after a change. |
 | Restart to Apply | Restarts the device so changed MQTT settings take effect. |
@@ -387,7 +417,8 @@ Every other reading and setting on the web page has its own topic under the same
 | Button 2 – tap | Open (or stop if moving). |
 | Button 2 – hold | Open while held (stops on release and at the open end). |
 | Both buttons – hold 3 sec | Set current position as home (0%). |
-| Button 3 – long press | Reset Wi-Fi and reboot to setup. |
+| Button 3 – hold 3–10 sec | Reset Wi-Fi and reboot to setup. |
+| Button 3 – hold 15–30 sec | Security reset: clears the Home Assistant key, web login and Wi-Fi (buzz at 15 sec). |
 
 ---
 

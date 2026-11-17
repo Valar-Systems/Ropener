@@ -30,6 +30,10 @@ substitutions:
   home_timeout_s: "60"             # homing auto-aborts after this if not stopped
                                    # -- backstops an accidental press and a
                                    # mis-tuned StallGuard that never fires
+  # Feedback buzz at 15 s into the security-reset hold (see recovery_buzz):
+  buzz_vactual: "2000"             # driver-internal velocity, ~0.7 microsteps/s per unit
+  buzz_half_period_us: "2000"      # time each way; equal both ways = no net motion
+  buzz_cycles: "100"               # back-and-forth pairs (~0.5 s)
 
 # Product boot steps. Core (priority 600) has already configured the TMC2209 and
 # stepper; here we resync the derived step count and restore the saved position
@@ -224,6 +228,41 @@ stepper:
           if (code == esphome::tmc2209::DRIVER_ERROR) id(drv_shutdown_seen)->execute("DIAG");
 
 script:
+  # Security-reset hold (Wi-Fi button 15–30 s, see btn3): buzz at 15 s so the
+  # customer knows it registered. Restarted on every press, stopped on release.
+  - id: recovery_hold_watch
+    mode: restart
+    then:
+      - delay: 15s
+      - if:
+          condition: { binary_sensor.is_on: btn3 }
+          then:
+            - script.execute: recovery_buzz
+
+  # A short buzz that doesn't move the curtain or change its position: the
+  # driver's velocity register (VACTUAL) alternates direction with equal time
+  # each way, so the rotor ends (within a few microsteps) where it started.
+  # The position count can't change: the stepper counts INDEX pulses times its
+  # direction, which is STANDSTILL while idle. Skipped while moving or homing.
+  - id: recovery_buzz
+    mode: single
+    then:
+      - if:
+          condition: { lambda: 'return id(global_state) == 0;' }
+          then:
+            - lambda: |-
+                auto *d = id(driver);
+                for (int i = 0; i < 2 * ${buzz_cycles}; i++) {
+                  d->write_register(VACTUAL, (i & 1) ? -${buzz_vactual} : ${buzz_vactual});
+                  delayMicroseconds(${buzz_half_period_us});
+                }
+                // Twice: a frame with a bad CRC is dropped, and a lost stop
+                // would leave the motor turning.
+                d->write_register(VACTUAL, 0);
+                delayMicroseconds(500);
+                d->write_register(VACTUAL, 0);
+                ESP_LOGI("ropener", "Security reset hold: 15 s reached (release before 30 s to reset)");
+
   # Count one driver shutdown, exactly once. Every shutdown (overheat or short)
   # sets GSTAT.drv_err, which stays set until cleared. Two readers clear it: our
   # 250ms poll, and the tmc2209 component on a DIAG edge (-> on_status
@@ -687,9 +726,15 @@ binary_sensor:
 
   # Rename core's "Button 3 (Wi-Fi reset)" to Ropener's "WiFi Reset" and attach
   # the hold-to-erase-credentials action.
+  # 3–10 s: clear Wi-Fi only. 15–30 s: security reset (API key, web login and
+  # Wi-Fi; calibration and settings kept), with a buzz at 15 s while held.
   - id: !extend btn3
     name: "WiFi Reset"
     web_server: { sorting_weight: 22, sorting_group_id: group_diagnostics }
+    on_press:
+      - script.execute: recovery_hold_watch
+    on_release:
+      - script.stop: recovery_hold_watch
     on_click:
       - min_length: 3000ms
         max_length: 10000ms
@@ -700,6 +745,10 @@ binary_sensor:
               esphome::wifi::global_wifi_component->clear_sta();
           - delay: 1s
           - lambda: "App.safe_reboot();"
+      - min_length: 15000ms
+        max_length: 30000ms
+        then:
+          - script.execute: security_factory_reset
 
 # --- Preserve the shipped "Motor Direction" option strings --------------------
 # Field units (and any Home Assistant automation that selects a direction) know
@@ -1105,11 +1154,19 @@ text:
     initial_value: ""
     on_value:
       - script.execute: mqtt_apply
-  # Write-only. ESPHome's web server masks a password text's "state" but still
-  # sends the real text in "value", so anyone on the LAN could read it from
-  # /text/MQTT Password. So the real password lives in mqtt_password_value and
-  # this entity only ever reports "(saved)" or "". Typing a new one saves it; the
-  # page echoing "(saved)" back is ignored rather than stored as the password.
+  # The security add-on's login must not be settable over MQTT: anyone on the
+  # broker could otherwise set the web login and, with it, the OTA password.
+  # A null state_topic makes the entity internal to MQTT (no state, no command
+  # subscription); the web page and Home Assistant are unaffected.
+  - id: !extend sec_web_user_text
+    state_topic: null
+  - id: !extend sec_web_pass_text
+    state_topic: null
+  # Write-only. The real password lives in mqtt_password_value and this entity
+  # only ever reports "(saved)" or "", so Home Assistant and MQTT never see it
+  # (ESPHome 2026.10's web page masks password texts itself; older releases sent
+  # the real text in "value"). Typing a new one saves it; "(saved)" echoed back
+  # is ignored rather than stored as the password.
   - platform: template
     name: "MQTT Password"
     id: mqtt_password
