@@ -43,11 +43,15 @@ jobs:
             esphome compile "${{ matrix.config }}"
           fi
 
+      # ESPHome 2026.10+ builds with ESP-IDF directly and writes the images to
+      # .esphome/build/<name>/build/ (older releases: .pioenvs/<name>/).
       - name: Collect binaries + md5
         run: |
           mkdir -p dist
-          F=$(find . -path "*/.pioenvs/*/firmware.factory.bin" | head -1)
-          O=$(find . -path "*/.pioenvs/*/firmware.ota.bin" | head -1)
+          B="$(dirname "${{ matrix.config }}")/.esphome/build"
+          F=$(find "$B" -name firmware.factory.bin | head -1)
+          O=$(find "$B" -name firmware.ota.bin | head -1)
+          if [ -z "$F" ] || [ -z "$O" ]; then echo "::error::firmware images not found under $B"; exit 1; fi
           cp "$F" "dist/${{ matrix.asset }}.factory.bin"
           cp "$O" "dist/${{ matrix.asset }}.ota.bin"
           md5sum "dist/${{ matrix.asset }}.ota.bin" | cut -d' ' -f1 > "dist/${{ matrix.asset }}.ota.bin.md5"
