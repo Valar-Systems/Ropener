@@ -50,5 +50,5 @@ Hold-to-run is the child- and elderly-friendly mode: the curtain only moves whil
 
 Two ways to update:
 
-- **Over the air, from the device:** open the settings page and, under Diagnostics, press **"Update Firmware (GitHub)"**. The device downloads the latest release for its model straight from GitHub, flashes itself, and reboots — no computer needed. (Requires an internet connection.)
+- **Over the air, from the device:** open the settings page and, under Diagnostics, press **"Update Firmware (GitHub)"**. The device downloads the latest release for its model straight from GitHub, flashes itself, and reboots — no computer needed. (Requires an internet connection.) **Firmware Update** (also under Diagnostics) shows the progress, or why an update failed; a failed update leaves the current firmware running.
 - **Manually:** download the `*.ota.bin` (for a device already on your network) or `*.factory.bin` (for a fresh USB flash) for your model from the [latest release](https://github.com/Valar-Systems/Ropener/releases/latest) and upload it as before.

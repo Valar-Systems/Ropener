@@ -336,6 +336,7 @@ Every other reading and setting on the web page has its own topic under the same
 | No setup hotspot appears | Wait a full minute after power-on. If it already joined a network, hold Button 3 for 3–10 seconds to reset Wi-Fi and try again. |
 | Open/Close are reversed | Set the “Motor Direction” setting to **Reversed**. |
 | Position is wrong / drifted | Run homing (Section 5) to recalibrate. |
+| “Update Firmware (GitHub)” didn't update | Check **Firmware Update** under Diagnostics: it shows the progress or why the update failed (for example no internet, or GitHub's security certificate couldn't be verified). A failed update never changes the firmware the device is running — fix the cause and press the button again. |
 | Curtain closes a little shorter every cycle | First check **Driver Temperature** and **Driver Shutdowns** under Diagnostics. If Driver Temperature ever shows Hot or Overheated, or Driver Shutdowns is above 0, the motor driver is cutting out on long runs: **lower** the Motor Current (IRUN) and keep Speed at Medium. Otherwise the rope may be slipping. In either case, Close Overtravel (Section 10) makes up the difference on every close. |
 | Schedule fires at the wrong time | Check the Timezone value (Section 7/8) and that the device has internet for time sync. |
 | Schedule doesn't run | Confirm “Schedule Enabled” is ON and that Open/Close times are set. |
@@ -371,6 +372,7 @@ Every other reading and setting on the web page has its own topic under the same
 | SG_RESULT / TSTEP | Live readings used when tuning homing. |
 | Driver Temperature | Motor driver health: OK, Hot, Overheated, or “Overheated earlier – re-home” (Diagnostics). |
 | Driver Shutdowns | How many times the motor driver has shut off since the last restart (Diagnostics). Each one loses position. |
+| Firmware Update | Progress of the last “Update Firmware (GitHub)” press, or why it failed (Diagnostics). |
 | MQTT Broker / Port / Username / Password / Enabled | Connect to an MQTT broker (Section 11). |
 | MQTT Status | Off, Connecting…, Connected with the topic prefix, or “press Restart to Apply” after a change. |
 | Restart to Apply | Restarts the device so changed MQTT settings take effect. |
